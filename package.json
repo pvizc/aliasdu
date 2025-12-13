@@ -1,0 +1,30 @@
+{
+  "name": "aliasdu",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "clean": "rimraf dist extension.zip",
+    "package": "npm run build && node scripts/package.mjs",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com//pvizc/aliasdu.git"
+  },
+  "keywords": [],
+  "author": "Paulo Vizcaíno",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^25.0.1",
+    "chrome-types": "^0.1.396",
+    "prettier": "^3.7.4",
+    "rimraf": "^6.1.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
+  }
+}

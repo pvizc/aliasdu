@@ -1,0 +1,26 @@
+# OS / editor junk
+.DS_Store
+.idea/
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Secrets / local config
+.env
+.env.*
+*.local
+config.local.json
+
+# Optional dev tooling
+node_modules/
+
+# Build outputs
+dist/
+build/
+.vite/
+.cache/

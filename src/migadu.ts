@@ -1,0 +1,74 @@
+// src/migadu.ts
+import type { CreateAliasInput, MigaduAlias, MigaduConfig, MigaduStorage } from "./types";
+
+const API_BASE = "https://api.migadu.com/v1";
+
+export async function getConfigOrThrow(): Promise<MigaduConfig> {
+  const { migadu } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
+
+  const user = migadu?.user?.trim();
+  const token = migadu?.token?.trim();
+  const domain = migadu?.domain?.trim();
+
+  if (!user || !token || !domain) {
+    throw new Error("Falta configuración. Abre Options y añade user/token/domain.");
+  }
+
+  return { user, token, domain };
+}
+
+function basicAuthHeader(user: string, token: string): string {
+  // Basic base64("user:token")
+  return `Basic ${btoa(`${user}:${token}`)}`;
+}
+
+async function assertOk(res: Response, label: string): Promise<void> {
+  if (res.ok) return;
+  const body = await res.text().catch(() => "");
+  throw new Error(`${label}: HTTP ${res.status}${body ? ` (${body})` : ""}`);
+}
+
+export async function listAliases(): Promise<MigaduAlias[]> {
+  const { user, token, domain } = await getConfigOrThrow();
+
+  const res = await fetch(`${API_BASE}/domains/${encodeURIComponent(domain)}/aliases`, {
+    headers: { Authorization: basicAuthHeader(user, token) },
+  });
+
+  await assertOk(res, "List aliases failed");
+  return (await res.json()) as MigaduAlias[];
+}
+
+export async function createAlias(input: CreateAliasInput): Promise<MigaduAlias> {
+  const { user, token, domain } = await getConfigOrThrow();
+
+  const res = await fetch(`${API_BASE}/domains/${encodeURIComponent(domain)}/aliases`, {
+    method: "POST",
+    headers: {
+      Authorization: basicAuthHeader(user, token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      local_part: input.localPart,
+      destinations: input.destinationsCsv,
+      is_internal: input.isInternal ? "true" : "false",
+    }),
+  });
+
+  await assertOk(res, "Create alias failed");
+  return (await res.json()) as MigaduAlias;
+}
+
+export async function deleteAlias(localPart: string): Promise<void> {
+  const { user, token, domain } = await getConfigOrThrow();
+
+  const res = await fetch(
+    `${API_BASE}/domains/${encodeURIComponent(domain)}/aliases/${encodeURIComponent(localPart)}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: basicAuthHeader(user, token) },
+    },
+  );
+
+  await assertOk(res, "Delete alias failed");
+}
