@@ -1,3 +1,4 @@
+import "./styles.css";
 import { MigaduConfig, MigaduStorage } from "./types";
 
 console.log("[options] loaded");

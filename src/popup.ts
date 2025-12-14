@@ -1,3 +1,4 @@
+import "./styles.css";
 import { createAlias, deleteAlias, listAliases } from "./migadu";
 import type { MigaduAlias, MigaduStorage } from "./types";
 
@@ -28,28 +29,47 @@ function render(aliases: MigaduAlias[]): void {
   listEl.innerHTML = "";
 
   if (!aliases.length) {
-    listEl.innerHTML = `<div class="muted">No aliases yet.</div>`;
+    listEl.innerHTML = `<div class="border-l-2 border-lime-500 bg-slate-50/50 p-3 text-sm text-slate-600">
+        Cache vacío. Pulsa <span class="font-semibold">↻</span>.
+      </div>`;
     return;
   }
 
   for (const a of aliases) {
     const row = document.createElement("div");
-    row.className = "row card";
+    row.className =
+      "group flex items-start justify-between gap-3 border-l-2 border-transparent px-3 py-3 hover:border-lime-500 hover:bg-slate-50/60";
 
     const left = document.createElement("div");
-    left.innerHTML = `
-      <div class="addr"><strong>${a.address}</strong></div>
-      <div class="muted">${(a.destinations ?? []).join(", ")}</div>
-    `;
+    left.className = "min-w-0";
+
+    const addr = document.createElement("div");
+    addr.className = "truncate text-sm font-semibold text-slate-900";
+    addr.textContent = a.address;
+
+    const dest = document.createElement("div");
+    dest.className = "mt-1 truncate text-xs text-slate-500";
+    dest.textContent = (a.destinations ?? []).join(", ");
+
+    left.append(addr, dest);
 
     const del = document.createElement("button");
+    del.type = "button";
+    del.className =
+      "mt-0.5 shrink-0 text-xs font-semibold text-rose-600 opacity-80 hover:opacity-100 group-hover:underline";
     del.textContent = "Borrar";
-    del.addEventListener("click", async (): Promise<void> => {
+
+    del.addEventListener("click", async () => {
       try {
         del.disabled = true;
         setStatus(`Borrando ${a.local_part}…`);
         await deleteAlias(a.local_part);
-        await refresh();
+
+        // modo “sin fetch”: actualiza cache + render
+        const remaining = aliases.filter((x) => x.local_part !== a.local_part);
+        await chrome.storage.local.set({ aliasCache: { at: Date.now(), aliases: remaining } });
+        render(remaining);
+        setStatus(`Borrado · ${remaining.length} aliases`);
       } catch (e) {
         setStatus(e instanceof Error ? e.message : String(e));
       } finally {
@@ -98,12 +118,12 @@ async function refresh(): Promise<void> {
 
 refreshBtn.addEventListener("click", () => void refresh());
 
-addBtn.addEventListener("click", (): void => {
-  createBox.style.display = createBox.style.display === "none" ? "block" : "none";
+addBtn.addEventListener("click", () => {
+  createBox.classList.toggle("hidden");
 });
 
-cancelBtn.addEventListener("click", (): void => {
-  createBox.style.display = "none";
+cancelBtn.addEventListener("click", () => {
+  createBox.classList.add("hidden");
 });
 
 createBtn.addEventListener("click", async (): Promise<void> => {

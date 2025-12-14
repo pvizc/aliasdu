@@ -20,10 +20,12 @@
   "license": "MIT",
   "type": "module",
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^25.0.1",
     "chrome-types": "^0.1.396",
     "prettier": "^3.7.4",
     "rimraf": "^6.1.2",
+    "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "vite": "^7.2.7"
   }
