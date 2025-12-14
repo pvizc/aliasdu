@@ -1,6 +1,7 @@
 import "./styles.css";
 import { createAlias, deleteAlias, listAliases } from "./migadu";
 import type { MigaduAlias, MigaduStorage } from "./types";
+import { createIcons, AtSign, RefreshCw, CirclePlus } from "lucide";
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -23,6 +24,14 @@ const cancelBtn = $<HTMLButtonElement>("cancelBtn");
 const localPartEl = $<HTMLInputElement>("localPart");
 const destinationsEl = $<HTMLInputElement>("destinations");
 const isInternalEl = $<HTMLInputElement>("isInternal"); // checkbox
+
+createIcons({
+  icons: {
+    AtSign,
+    RefreshCw,
+    CirclePlus,
+  },
+});
 
 function setStatus(msg: string): void {
   statusEl.textContent = msg;
@@ -71,19 +80,19 @@ function render(aliases: MigaduAlias[]): void {
     del.type = "button";
     del.className =
       "mt-0.5 shrink-0 text-xs font-semibold text-rose-600 opacity-80 hover:opacity-100 group-hover:underline";
-    del.textContent = "Borrar";
+    del.textContent = "Delete";
 
     del.addEventListener("click", async () => {
       try {
         del.disabled = true;
-        setStatus(`Borrando ${a.local_part}…`);
+        setStatus(`Deleting ${a.local_part}…`);
         await deleteAlias(a.local_part);
 
         // modo “sin fetch”: actualiza cache + render
         const remaining = aliases.filter((x) => x.local_part !== a.local_part);
         await chrome.storage.local.set({ aliasCache: { at: Date.now(), aliases: remaining } });
         render(remaining);
-        setStatus(`Borrado · ${remaining.length} aliases`);
+        setStatus(`Deleted · ${remaining.length} aliases`);
       } catch (e) {
         setStatus(e instanceof Error ? e.message : String(e));
       } finally {
@@ -115,13 +124,13 @@ async function load(): Promise<void> {
   setStatus(
     aliases.length
       ? `Cache · ${filtered.length}/${aliases.length} aliases`
-      : "Cache vacío · pulsa ↻",
+      : "Empty cache · press ↻",
   );
 }
 
 async function refresh(): Promise<void> {
   try {
-    setStatus("Actualizando…");
+    setStatus("Updating...");
 
     const aliases = await listAliases();
 
@@ -147,7 +156,7 @@ cancelBtn.addEventListener("click", () => {
 createBtn.addEventListener("click", async (): Promise<void> => {
   try {
     createBtn.disabled = true;
-    setStatus("Creando…");
+    setStatus("Creating...");
 
     const localPart = localPartEl.value.trim();
     const destinationsCsv = destinationsEl.value.trim();
@@ -202,7 +211,7 @@ searchEl.addEventListener("input", () => {
     setStatus(
       allAliases.length
         ? `Cache · ${filtered.length}/${allAliases.length} aliases`
-        : "Cache vacío · pulsa ↻",
+        : "Empty cache · press ↻",
     );
   }, 80);
 });

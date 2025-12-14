@@ -10,7 +10,12 @@
     <div class="sticky top-0 z-10 -mx-3 bg-white px-3 pb-3 pt-3">
       <header class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
-          <div class="grid size-9 place-items-center rounded-xl bg-lime-500 text-white">@</div>
+          <div
+            class="grid size-9 place-items-center rounded-xl bg-lime-500 text-white"
+            aria-hidden="true"
+          >
+            <i data-lucide="at-sign" class="size-5 text-white stroke-current"></i>
+          </div>
           <div class="leading-tight">
             <div class="text-sm font-semibold">Migadu Aliases</div>
             <div class="text-xs text-slate-500">minimal · lime</div>
@@ -21,18 +26,20 @@
           <button
             id="refresh"
             type="button"
-            class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm hover:bg-slate-50"
-            title="Refrescar"
+            class="grid place-items-center rounded-xl border border-slate-200 bg-white size-9 text-sm shadow-sm hover:bg-slate-50 cursor-pointer"
+            aria-label="Refresh"
+            title="Refresh"
           >
-            ↻
+            <i data-lucide="refresh-cw" aria-hidden="true" class="size-4 text-slate-700 stroke-current"></i>
           </button>
           <button
             id="add"
             type="button"
-            class="rounded-xl bg-lime-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-lime-600"
-            title="Nuevo alias"
+            class="grid place-items-center rounded-xl bg-lime-500 size-9 text-sm font-semibold text-white shadow-sm hover:bg-lime-600 cursor-pointer"
+            aria-label="New alias"
+            title="New alias"
           >
-            +
+            <i data-lucide="circle-plus" aria-hidden="true" class="size-4 text-white stroke-current"></i>
           </button>
         </div>
       </header>
@@ -42,7 +49,7 @@
         <input
           id="search"
           type="search"
-          placeholder="Buscar alias..."
+          placeholder="Search..."
           class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
         />
       </div>
@@ -69,7 +76,6 @@
       <input
         id="destinations"
         class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
-        placeholder="inbox@pvizc.cc"
       />
 
       <label class="mt-3 flex items-center gap-2 text-xs text-slate-700">

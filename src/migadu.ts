@@ -14,7 +14,7 @@ export async function getConfigOrThrow(): Promise<MigaduConfig> {
   const domain = migadu?.domain?.trim();
 
   if (!user || !token || !domain) {
-    throw new Error("Falta configuración. Abre Options y añade user/token/domain.");
+    throw new Error("Missing configuration. Open Options and add your user, API token and domain.");
   }
 
   return { user, token, domain };
