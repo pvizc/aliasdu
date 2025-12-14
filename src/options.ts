@@ -1,5 +1,6 @@
 import "./styles.css";
 import { MigaduConfig, MigaduStorage } from "./types";
+import { createIcons, AtSign } from "lucide";
 
 console.log("[options] loaded");
 
@@ -14,6 +15,12 @@ const tokenEl = $<HTMLInputElement>("token");
 const domainEl = $<HTMLInputElement>("domain");
 const saveEl = $<HTMLButtonElement>("save");
 const statusEl = $<HTMLElement>("status");
+
+createIcons({
+  icons: {
+    AtSign,
+  },
+});
 
 async function load(): Promise<void> {
   const { migadu = {} } = (await chrome.storage.local.get("migadu")) as MigaduStorage;

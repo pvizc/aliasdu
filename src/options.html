@@ -1,84 +1,90 @@
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Aliasdu · Config</title>
-</head>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aliasdu · Config</title>
+  </head>
 
-<body class="bg-white font-sans text-slate-900">
-<main class="mx-auto max-w-xl px-4 py-6">
-  <header class="flex items-center gap-3">
-    <div class="grid size-11 place-items-center rounded-2xl bg-lime-500 text-white shadow-sm">
-      @
-    </div>
-    <div>
-      <h1 class="text-lg font-semibold leading-tight">Aliasdu</h1>
-      <p class="text-sm text-slate-500">Migadu · API config</p>
-    </div>
-  </header>
+  <body class="bg-white font-sans text-slate-900">
+    <main class="mx-auto max-w-xl px-4 py-6">
+      <header class="flex items-center gap-3">
+        <div
+          class="grid size-9 place-items-center rounded-xl bg-lime-500 text-white"
+          aria-hidden="true"
+        >
+          <i data-lucide="at-sign" class="size-5 text-white stroke-current"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-semibold leading-tight">Aliasdu</h1>
+          <p class="text-sm text-slate-500">Migadu · API config</p>
+        </div>
+      </header>
 
-  <section class="mt-6 border-l-2 border-lime-500 bg-slate-50/50 p-4">
-    <p class="text-sm text-slate-600">
-      Estos datos se guardan en <span class="font-medium">chrome.storage.local</span> en tu navegador.
-    </p>
-  </section>
+      <section class="mt-6 border-l-2 border-lime-500 bg-slate-50/50 p-4">
+        <p class="text-sm text-slate-600">
+          Estos datos se guardan en <span class="font-medium">chrome.storage.local</span> en tu
+          navegador.
+        </p>
+      </section>
 
-  <section class="mt-6 space-y-4">
-    <div>
-      <label for="user" class="block text-xs font-semibold text-slate-700">Email (usuario API)</label>
-      <input
-        id="user"
-        type="email"
-        inputmode="email"
-        autocapitalize="none"
-        autocomplete="username"
-        spellcheck="false"
-        placeholder="admin@tudominio.com"
-        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
-      />
-    </div>
+      <section class="mt-6 space-y-4">
+        <div>
+          <label for="user" class="block text-xs font-semibold text-slate-700"
+            >Email (usuario API)</label
+          >
+          <input
+            id="user"
+            type="email"
+            inputmode="email"
+            autocapitalize="none"
+            autocomplete="username"
+            spellcheck="false"
+            placeholder="admin@yourdomain.com"
+            class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
+          />
+        </div>
 
-    <div>
-      <label for="token" class="block text-xs font-semibold text-slate-700">API key / token</label>
-      <input
-        id="token"
-        type="password"
-        autocapitalize="none"
-        autocomplete="current-password"
-        spellcheck="false"
-        placeholder="••••••••"
-        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
-      />
-      <p class="mt-1 text-xs text-slate-500">Tip: puedes pegarlo tal cual, no lo formateamos.</p>
-    </div>
+        <div>
+          <label for="token" class="block text-xs font-semibold text-slate-700"
+            >API key / token</label
+          >
+          <input
+            id="token"
+            type="password"
+            autocapitalize="none"
+            spellcheck="false"
+            placeholder="••••••••"
+            class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
+          />
+        </div>
 
-    <div>
-      <label for="domain" class="block text-xs font-semibold text-slate-700">Dominio</label>
-      <input
-        id="domain"
-        autocapitalize="none"
-        autocomplete="off"
-        spellcheck="false"
-        placeholder="yourdomain.com"
-        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
-      />
-    </div>
-  </section>
+        <div>
+          <label for="domain" class="block text-xs font-semibold text-slate-700">Dominio</label>
+          <input
+            id="domain"
+            autocapitalize="none"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="yourdomain.com"
+            class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
+          />
+        </div>
+      </section>
 
-  <footer class="mt-6 flex items-center justify-between gap-3">
-    <p id="status" class="text-xs text-slate-500">—</p>
+      <footer class="mt-6 flex items-center justify-between gap-3">
+        <p id="status" class="text-xs text-slate-500">—</p>
 
-    <button
-      id="save"
-      type="button"
-      class="rounded-xl bg-lime-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-lime-600 active:scale-[0.98]"
-    >
-      Guardar
-    </button>
-  </footer>
-</main>
+        <button
+          id="save"
+          type="button"
+          class="rounded-xl bg-lime-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-lime-600 active:scale-[0.98]"
+        >
+          Guardar
+        </button>
+      </footer>
+    </main>
 
-<script type="module" src="./options.ts"></script>
-</body>
+    <script type="module" src="./options.ts"></script>
+  </body>
 </html>
