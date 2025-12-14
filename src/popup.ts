@@ -48,17 +48,46 @@ function filterAliases(q: string, aliases: MigaduAlias[]): MigaduAlias[] {
   });
 }
 
-function render(aliases: MigaduAlias[]): void {
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => {
+    switch (c) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return c;
+    }
+  });
+}
+
+function render(visible: MigaduAlias[], totalCount: number): void {
   listEl.innerHTML = "";
 
-  if (!aliases.length) {
-    listEl.innerHTML = `<div class="border-l-2 border-lime-500 bg-slate-50/50 p-3 text-sm text-slate-600">
-        Cache vacío. Pulsa <span class="font-semibold">↻</span>.
+  if (totalCount === 0) {
+    listEl.innerHTML = `
+      <div class="border-l-2 border-lime-500 bg-slate-50/50 p-3 text-sm text-slate-600">
+        Empty cache. Click <span class="font-semibold">↻</span> to fetch.
       </div>`;
     return;
   }
 
-  for (const a of aliases) {
+  if (visible.length === 0) {
+    const q = searchEl.value.trim();
+    listEl.innerHTML = `
+      <div class="border-l-2 border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-600">
+        No matches${q ? ` for <span class="font-semibold">"${escapeHtml(q)}"</span>` : ""}.
+      </div>`;
+    return;
+  }
+
+  for (const a of visible) {
     const row = document.createElement("div");
     row.className =
       "group flex items-start justify-between gap-3 border-l-2 border-transparent px-3 py-3 hover:border-lime-500 hover:bg-slate-50/60";
@@ -88,11 +117,12 @@ function render(aliases: MigaduAlias[]): void {
         setStatus(`Deleting ${a.local_part}…`);
         await deleteAlias(a.local_part);
 
-        // modo “sin fetch”: actualiza cache + render
-        const remaining = aliases.filter((x) => x.local_part !== a.local_part);
-        await chrome.storage.local.set({ aliasCache: { at: Date.now(), aliases: remaining } });
-        render(remaining);
-        setStatus(`Deleted · ${remaining.length} aliases`);
+        allAliases = allAliases.filter((x) => x.local_part !== a.local_part);
+        await chrome.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
+
+        const filtered = filterAliases(searchEl.value, allAliases);
+        render(filtered, allAliases.length);
+        setStatus(`Deleted · ${filtered.length}/${allAliases.length} aliases`);
       } catch (e) {
         setStatus(e instanceof Error ? e.message : String(e));
       } finally {
@@ -119,7 +149,7 @@ async function load(): Promise<void> {
   allAliases = aliases;
 
   const filtered = filterAliases(searchEl.value, allAliases);
-  render(filtered);
+  render(filtered, allAliases.length);
 
   setStatus(
     aliases.length
@@ -136,7 +166,7 @@ async function refresh(): Promise<void> {
 
     await writeCache(aliases);
     allAliases = aliases;
-    render(filterAliases(searchEl.value, allAliases));
+    render(filterAliases(searchEl.value, allAliases), allAliases.length);
     setStatus(`OK · ${aliases.length} aliases`);
   } catch (e) {
     setStatus(e instanceof Error ? e.message : String(e));
@@ -191,7 +221,7 @@ createBtn.addEventListener("click", async (): Promise<void> => {
 
     // Respeta búsqueda
     const filtered = filterAliases(searchEl.value, allAliases);
-    render(filtered);
+    render(filtered, allAliases.length);
     setStatus(`Creado · ${filtered.length}/${allAliases.length} aliases`);
   } catch (e) {
     setStatus(e instanceof Error ? e.message : String(e));
@@ -206,7 +236,7 @@ searchEl.addEventListener("input", () => {
   window.clearTimeout(t);
   t = window.setTimeout(() => {
     const filtered = filterAliases(searchEl.value, allAliases);
-    render(filtered);
+    render(filtered, allAliases.length);
 
     setStatus(
       allAliases.length

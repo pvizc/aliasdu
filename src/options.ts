@@ -1,6 +1,6 @@
 import "./styles.css";
 import { MigaduConfig, MigaduStorage } from "./types";
-import { createIcons, AtSign } from "lucide";
+import { createIcons, AtSign, Coffee } from "lucide";
 
 console.log("[options] loaded");
 
@@ -19,6 +19,7 @@ const statusEl = $<HTMLElement>("status");
 createIcons({
   icons: {
     AtSign,
+    Coffee,
   },
 });
 

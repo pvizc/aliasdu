@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -23,15 +23,15 @@
 
       <section class="mt-6 border-l-2 border-lime-500 bg-slate-50/50 p-4">
         <p class="text-sm text-slate-600">
-          Estos datos se guardan en <span class="font-medium">chrome.storage.local</span> en tu
-          navegador.
+          These settings are stored in <span class="font-medium">chrome.storage.local</span> in your
+          browser.
         </p>
       </section>
 
       <section class="mt-6 space-y-4">
         <div>
           <label for="user" class="block text-xs font-semibold text-slate-700"
-            >Email (usuario API)</label
+            >Email (API user)</label
           >
           <input
             id="user"
@@ -60,7 +60,7 @@
         </div>
 
         <div>
-          <label for="domain" class="block text-xs font-semibold text-slate-700">Dominio</label>
+          <label for="domain" class="block text-xs font-semibold text-slate-700">Domain</label>
           <input
             id="domain"
             autocapitalize="none"
@@ -80,9 +80,22 @@
           type="button"
           class="rounded-xl bg-lime-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-lime-600 active:scale-[0.98]"
         >
-          Guardar
+          Save
         </button>
       </footer>
+      <div class="mt-8 border-t border-slate-200 pt-4 text-center">
+        <p class="text-xs text-slate-500">If this extension saves you time,</p>
+
+        <a
+          href="https://www.buymeacoffee.com/pvizc"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500"
+        >
+          <i data-lucide="coffee" class="size-4 stroke-current"></i>
+          <span>Buy me a coffee</span>
+        </a>
+      </div>
     </main>
 
     <script type="module" src="./options.ts"></script>
