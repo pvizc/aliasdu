@@ -10,7 +10,6 @@ export type MigaduStorage = {
 };
 
 export type MigaduAlias = {
-  // Campos típicos que devuelve Migadu
   address: string;
   local_part: string;
   destinations: string[];
@@ -27,5 +26,3 @@ export type CreateAliasInput = {
   destinationsCsv: string; // "a@dominio.com,b@dominio.com"
   isInternal?: boolean;
 };
-
-export type AliasListResponse = MigaduAlias[] | { aliases: MigaduAlias[] };

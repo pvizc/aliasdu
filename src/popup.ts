@@ -8,6 +8,9 @@ const $ = <T extends HTMLElement>(id: string): T => {
   return el as T;
 };
 
+const searchEl = $<HTMLInputElement>("search");
+let allAliases: MigaduAlias[] = [];
+
 const statusEl = $<HTMLElement>("status");
 const listEl = $<HTMLElement>("list");
 
@@ -23,6 +26,17 @@ const isInternalEl = $<HTMLInputElement>("isInternal"); // checkbox
 
 function setStatus(msg: string): void {
   statusEl.textContent = msg;
+}
+
+function filterAliases(q: string, aliases: MigaduAlias[]): MigaduAlias[] {
+  const query = q.trim().toLowerCase();
+  if (!query) return aliases;
+
+  return aliases.filter((a) => {
+    const haystack =
+      `${a.address} ${(a.destinations ?? []).join(", ")} ${a.local_part}`.toLowerCase();
+    return haystack.includes(query);
+  });
 }
 
 function render(aliases: MigaduAlias[]): void {
@@ -91,25 +105,29 @@ async function writeCache(aliases: MigaduAlias[]): Promise<void> {
   await chrome.storage.local.set({ aliasCache: { at: Date.now(), aliases } });
 }
 
-function isAliasArray(x: unknown): x is MigaduAlias[] {
-  return Array.isArray(x);
-}
-
 async function load(): Promise<void> {
   const aliases = await readCache();
-  render(aliases);
-  setStatus(aliases.length ? `Cache · ${aliases.length} aliases` : "Cache vacío · pulsa ↻");
+  allAliases = aliases;
+
+  const filtered = filterAliases(searchEl.value, allAliases);
+  render(filtered);
+
+  setStatus(
+    aliases.length
+      ? `Cache · ${filtered.length}/${aliases.length} aliases`
+      : "Cache vacío · pulsa ↻",
+  );
 }
 
 async function refresh(): Promise<void> {
   try {
     setStatus("Actualizando…");
 
-    const data = (await listAliases()) as { address_aliases?: MigaduAlias[] };
-    const aliases = data.address_aliases ?? [];
+    const aliases = await listAliases();
 
     await writeCache(aliases);
-    render(aliases);
+    allAliases = aliases;
+    render(filterAliases(searchEl.value, allAliases));
     setStatus(`OK · ${aliases.length} aliases`);
   } catch (e) {
     setStatus(e instanceof Error ? e.message : String(e));
@@ -137,23 +155,56 @@ createBtn.addEventListener("click", async (): Promise<void> => {
     if (!localPart) throw new Error("Empty local part.");
     if (!destinationsCsv) throw new Error("Empty destinations.");
 
-    await createAlias({
+    const created = await createAlias({
       localPart,
       destinationsCsv,
       isInternal: isInternalEl.checked,
     });
 
+    const createdNormalized: MigaduAlias = {
+      ...created,
+      is_internal:
+        typeof (created as any).is_internal === "string"
+          ? (created as any).is_internal === "true"
+          : created.is_internal,
+      destinations: Array.isArray(created.destinations) ? created.destinations : [],
+    };
+
+    // Limpia UI
     localPartEl.value = "";
     destinationsEl.value = "";
     isInternalEl.checked = false;
-    createBox.style.display = "none";
+    createBox.classList.add("hidden");
 
-    await refresh();
+    // Actualiza cache + estado local (sin fetch)
+    allAliases = [createdNormalized, ...allAliases];
+    await chrome.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
+
+    // Respeta búsqueda
+    const filtered = filterAliases(searchEl.value, allAliases);
+    render(filtered);
+    setStatus(`Creado · ${filtered.length}/${allAliases.length} aliases`);
   } catch (e) {
     setStatus(e instanceof Error ? e.message : String(e));
   } finally {
     createBtn.disabled = false;
   }
+});
+
+let t: number | undefined;
+
+searchEl.addEventListener("input", () => {
+  window.clearTimeout(t);
+  t = window.setTimeout(() => {
+    const filtered = filterAliases(searchEl.value, allAliases);
+    render(filtered);
+
+    setStatus(
+      allAliases.length
+        ? `Cache · ${filtered.length}/${allAliases.length} aliases`
+        : "Cache vacío · pulsa ↻",
+    );
+  }, 80);
 });
 
 void load();

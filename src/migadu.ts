@@ -1,7 +1,10 @@
-// src/migadu.ts
-import type { CreateAliasInput, MigaduAlias, MigaduConfig, MigaduStorage } from "./types";
+import { CreateAliasInput, MigaduAlias, MigaduConfig, MigaduStorage } from "./types";
 
 const API_BASE = "https://api.migadu.com/v1";
+
+type MigaduAliasRaw = Omit<MigaduAlias, "is_internal"> & {
+  is_internal?: boolean | "true" | "false";
+};
 
 export async function getConfigOrThrow(): Promise<MigaduConfig> {
   const { migadu } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
@@ -35,8 +38,17 @@ export async function listAliases(): Promise<MigaduAlias[]> {
     headers: { Authorization: basicAuthHeader(user, token) },
   });
 
-  await assertOk(res, "List aliases failed");
-  return (await res.json()) as MigaduAlias[];
+  const data = (await res.json()) as { address_aliases?: MigaduAliasRaw[] };
+  return (data.address_aliases ?? []).map(normalizeAlias);
+}
+
+function normalizeAlias(raw: MigaduAliasRaw): MigaduAlias {
+  return {
+    address: raw.address,
+    local_part: raw.local_part,
+    destinations: Array.isArray(raw.destinations) ? raw.destinations : [],
+    is_internal: typeof raw.is_internal === "string" ? raw.is_internal === "true" : raw.is_internal,
+  };
 }
 
 export async function createAlias(input: CreateAliasInput): Promise<MigaduAlias> {
@@ -56,7 +68,9 @@ export async function createAlias(input: CreateAliasInput): Promise<MigaduAlias>
   });
 
   await assertOk(res, "Create alias failed");
-  return (await res.json()) as MigaduAlias;
+
+  const raw = (await res.json()) as MigaduAliasRaw;
+  return normalizeAlias(raw);
 }
 
 export async function deleteAlias(localPart: string): Promise<void> {
