@@ -1,3 +1,4 @@
+import browser from "webextension-polyfill";
 import { CreateAliasInput, MigaduAlias, MigaduConfig, MigaduStorage } from "./types";
 
 const API_BASE = "https://api.migadu.com/v1";
@@ -7,7 +8,7 @@ type MigaduAliasRaw = Omit<MigaduAlias, "is_internal"> & {
 };
 
 export async function getConfigOrThrow(): Promise<MigaduConfig> {
-  const { migadu } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
+  const { migadu } = (await browser.storage.local.get("migadu")) as MigaduStorage;
 
   const user = migadu?.user?.trim();
   const token = migadu?.token?.trim();
