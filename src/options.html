@@ -60,15 +60,35 @@
         </div>
 
         <div>
-          <label for="domain" class="block text-xs font-semibold text-slate-700">Domain</label>
-          <input
-            id="domain"
+          <div class="flex items-center justify-between gap-2">
+            <label for="domains" class="block text-xs font-semibold text-slate-700">Domains</label>
+            <p class="text-[11px] text-slate-500">One per line</p>
+          </div>
+          <textarea
+            id="domains"
             autocapitalize="none"
             autocomplete="off"
             spellcheck="false"
-            placeholder="yourdomain.com"
+            rows="3"
+            placeholder="yourdomain.com&#10;anotherdomain.com"
             class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
-          />
+          ></textarea>
+        </div>
+
+        <div>
+          <label for="defaultAliasDomain" class="block text-xs font-semibold text-slate-700">
+            Default alias domain
+          </label>
+          <select
+            id="defaultAliasDomain"
+            class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
+          >
+            <option value="">— None —</option>
+          </select>
+          <p class="mt-1 text-[11px] text-slate-500">
+            Used when creating new aliases. Leave as <span class="font-semibold">None</span> to pick
+            a domain manually elsewhere.
+          </p>
         </div>
       </section>
 

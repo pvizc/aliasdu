@@ -1,7 +1,9 @@
 export type MigaduConfig = {
   user: string;
   token: string;
-  domain: string;
+  domain: string; // Legacy single-domain config
+  domains: string[];
+  defaultAliasDomain: string | null;
 };
 
 export type MigaduStorage = {
