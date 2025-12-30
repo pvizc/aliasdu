@@ -61,7 +61,6 @@ function renderMissingConfig(): void {
       <div class="border-l-2 border-amber-500 bg-amber-50 p-3 text-sm text-amber-800">
         ${missingConfigMessage}
       </div>`;
-  setStatus(missingConfigMessage);
 }
 
 function buildAliasToCopy(alias: MigaduAlias): string {
@@ -129,7 +128,7 @@ let availableDomains: string[] = [];
 let defaultAliasDomain: string | null = null;
 
 function updateDomainSelectorLabel(): void {
-  const label = availableDomains.length === 0 ? "No alias domains" : defaultAliasDomain ?? "None";
+  const label = availableDomains.length === 0 ? "No alias domains" : (defaultAliasDomain ?? "None");
   domainSelectorLabelEl.textContent = label;
   domainSelectorBtn.disabled = availableDomains.length === 0;
   domainSelectorBtn.title =
@@ -192,10 +191,7 @@ async function loadDomains(): Promise<void> {
   const storedDomains = Array.isArray(migadu.domains)
     ? migadu.domains.map((d) => d.trim()).filter(Boolean)
     : [];
-  const normalized =
-    storedDomains.length > 0
-      ? storedDomains
-      : (legacyDomain ? [legacyDomain] : []);
+  const normalized = storedDomains.length > 0 ? storedDomains : legacyDomain ? [legacyDomain] : [];
   availableDomains = Array.from(new Set(normalized.filter(Boolean) as string[]));
 
   defaultAliasDomain =
