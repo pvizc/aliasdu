@@ -76,7 +76,7 @@ function renderMissingConfig(): void {
       <div class="border-l-2 border-amber-500 bg-amber-50 p-3 text-sm text-amber-800">
         ${missingConfigMessage}
       </div>`;
-  setStatus(missingConfigMessage);
+  setStatus("Missing configuration.");
 }
 
 function buildAliasToCopy(alias: MigaduAlias): string {
