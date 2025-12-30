@@ -43,6 +43,20 @@ function setStatus(msg: string): void {
 const missingConfigMessage =
   "Missing configuration. Open Options and add your user, API token and domain.";
 
+function setControlAvailability(enabled: boolean): void {
+  refreshBtn.disabled = !enabled;
+  addBtn.disabled = !enabled;
+  searchEl.disabled = !enabled;
+
+  refreshBtn.title = enabled ? "Refresh" : missingConfigMessage;
+  addBtn.title = enabled ? "New alias" : missingConfigMessage;
+  searchEl.placeholder = enabled ? "Search..." : "Configure Migadu to search aliases";
+
+  if (!enabled) {
+    createBox.classList.add("hidden");
+  }
+}
+
 async function hasCompleteConfig(): Promise<boolean> {
   const { migadu } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
 
@@ -57,10 +71,12 @@ async function hasCompleteConfig(): Promise<boolean> {
 }
 
 function renderMissingConfig(): void {
+  setControlAvailability(false);
   listEl.innerHTML = `
       <div class="border-l-2 border-amber-500 bg-amber-50 p-3 text-sm text-amber-800">
         ${missingConfigMessage}
       </div>`;
+  setStatus("Missing configuration.");
 }
 
 function buildAliasToCopy(alias: MigaduAlias): string {
@@ -231,12 +247,6 @@ async function setDefaultAliasDomain(domain: string | null): Promise<void> {
   defaultAliasDomain = normalized;
   updateDomainSelectorLabel();
   renderDomainMenu();
-
-  setStatus(
-    normalized
-      ? `Default alias domain: ${normalized}`
-      : "Default alias domain cleared (copying raw alias).",
-  );
 }
 
 function render(visible: MigaduAlias[], totalCount: number): void {
@@ -337,6 +347,7 @@ async function writeCache(aliases: MigaduAlias[]): Promise<void> {
 
 async function load(): Promise<void> {
   const configured = await hasCompleteConfig();
+  setControlAvailability(configured);
   if (!configured) {
     renderMissingConfig();
     return;
@@ -358,6 +369,7 @@ async function load(): Promise<void> {
 async function refresh(): Promise<void> {
   try {
     const configured = await hasCompleteConfig();
+    setControlAvailability(configured);
     if (!configured) {
       renderMissingConfig();
       return;
