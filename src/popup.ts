@@ -105,17 +105,17 @@ let availableDomains: string[] = [];
 let defaultAliasDomain: string | null = null;
 
 function updateDomainSelectorLabel(): void {
-  const label = availableDomains.length === 0 ? "No domains" : defaultAliasDomain ?? "None";
+  const label = availableDomains.length === 0 ? "No alias domains" : defaultAliasDomain ?? "None";
   domainSelectorLabelEl.textContent = label;
   domainSelectorBtn.disabled = availableDomains.length === 0;
   domainSelectorBtn.title =
     availableDomains.length === 0
-      ? "Configure domains in Options"
+      ? "Configure alias domains in Options"
       : "Select default alias domain";
 
   if (availableDomains.length === 0) {
     domainMenuEl.innerHTML =
-      '<div class="px-3 py-2 text-xs text-slate-500">Configure domains in Options.</div>';
+      '<div class="px-3 py-2 text-xs text-slate-500">Configure alias domains in Options.</div>';
   }
 }
 
@@ -128,7 +128,7 @@ function renderDomainMenu(): void {
 
   if (availableDomains.length === 0) {
     domainMenuEl.innerHTML =
-      '<div class="px-3 py-2 text-xs text-slate-500">Configure domains in Options.</div>';
+      '<div class="px-3 py-2 text-xs text-slate-500">Configure alias domains in Options.</div>';
     return;
   }
 
@@ -165,8 +165,14 @@ async function loadDomains(): Promise<void> {
   const { migadu = {} } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
 
   const legacyDomain = migadu.domain?.trim();
-  const storedDomains = Array.isArray(migadu.domains) ? migadu.domains : [];
-  availableDomains = Array.from(new Set([...storedDomains, legacyDomain].filter(Boolean) as string[]));
+  const storedDomains = Array.isArray(migadu.domains)
+    ? migadu.domains.map((d) => d.trim()).filter(Boolean)
+    : [];
+  const normalized =
+    storedDomains.length > 0
+      ? storedDomains
+      : (legacyDomain ? [legacyDomain] : []);
+  availableDomains = Array.from(new Set(normalized.filter(Boolean) as string[]));
 
   defaultAliasDomain =
     migadu.defaultAliasDomain && availableDomains.includes(migadu.defaultAliasDomain)
@@ -181,15 +187,22 @@ async function setDefaultAliasDomain(domain: string | null): Promise<void> {
   const { migadu = {} } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
 
   const legacyDomain = migadu.domain?.trim();
-  const storedDomains = Array.isArray(migadu.domains) ? migadu.domains : [];
+  const storedDomains = Array.isArray(migadu.domains)
+    ? migadu.domains.map((d) => d.trim()).filter(Boolean)
+    : [];
   const normalizedDomains = Array.from(
-    new Set([...storedDomains, legacyDomain].filter(Boolean) as string[]),
+    new Set(
+      (storedDomains.length > 0 ? storedDomains : legacyDomain ? [legacyDomain] : []).filter(
+        Boolean,
+      ) as string[],
+    ),
   );
 
   const normalized = domain && normalizedDomains.includes(domain) ? domain : null;
   await chrome.storage.local.set({
     migadu: {
       ...migadu,
+      domains: normalizedDomains,
       defaultAliasDomain: normalized,
     },
   });
@@ -202,7 +215,7 @@ async function setDefaultAliasDomain(domain: string | null): Promise<void> {
   setStatus(
     normalized
       ? `Default alias domain: ${normalized}`
-      : "Default alias domain cleared (using first configured domain).",
+      : "Default alias domain cleared (copying raw alias).",
   );
 }
 

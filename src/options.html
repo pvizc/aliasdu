@@ -61,7 +61,28 @@
 
         <div>
           <div class="flex items-center justify-between gap-2">
-            <label for="domains" class="block text-xs font-semibold text-slate-700">Domains</label>
+            <label for="domain" class="block text-xs font-semibold text-slate-700">
+              Domain (API)
+            </label>
+          </div>
+          <input
+            id="domain"
+            autocapitalize="none"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="yourdomain.com"
+            class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
+          />
+          <p class="mt-1 text-[11px] text-slate-500">
+            Used for Migadu API requests (list/create/delete aliases).
+          </p>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between gap-2">
+            <label for="domains" class="block text-xs font-semibold text-slate-700">
+              Alias domains (clipboard)
+            </label>
             <p class="text-[11px] text-slate-500">One per line</p>
           </div>
           <textarea
@@ -70,9 +91,12 @@
             autocomplete="off"
             spellcheck="false"
             rows="3"
-            placeholder="yourdomain.com&#10;anotherdomain.com"
+            placeholder="alias.yourdomain.com&#10;marketing.yourdomain.com"
             class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
           ></textarea>
+          <p class="mt-1 text-[11px] text-slate-500">
+            Optional. Used only when copying aliases (prepend <code>local@alias-domain</code>).
+          </p>
         </div>
 
         <div>
@@ -86,8 +110,8 @@
             <option value="">— None —</option>
           </select>
           <p class="mt-1 text-[11px] text-slate-500">
-            Used when creating new aliases. Leave as <span class="font-semibold">None</span> to pick
-            a domain manually elsewhere.
+            Used only for copy-to-clipboard. Leave as <span class="font-semibold">None</span> to copy
+            the alias exactly as stored.
           </p>
         </div>
       </section>

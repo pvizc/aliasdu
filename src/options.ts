@@ -12,6 +12,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 
 const userEl = $<HTMLInputElement>("user");
 const tokenEl = $<HTMLInputElement>("token");
+const domainEl = $<HTMLInputElement>("domain");
 const domainsEl = $<HTMLTextAreaElement>("domains");
 const defaultAliasDomainEl = $<HTMLSelectElement>("defaultAliasDomain");
 const saveEl = $<HTMLButtonElement>("save");
@@ -62,15 +63,22 @@ async function load(): Promise<void> {
 
   const legacyDomain = migadu.domain?.trim();
   const storedDomains = Array.isArray(migadu.domains) ? migadu.domains : [];
-  const domains = Array.from(new Set([...storedDomains, legacyDomain].filter(Boolean) as string[]));
+  const aliasDomains = Array.from(
+    new Set(
+      (storedDomains.length > 0 ? storedDomains : legacyDomain ? [legacyDomain] : []).map((d) =>
+        d.trim(),
+      ).filter(Boolean),
+    ),
+  );
 
-  domainsEl.value = domains.join("\n");
+  domainsEl.value = aliasDomains.join("\n");
+  domainEl.value = legacyDomain ?? aliasDomains[0] ?? "";
 
   const defaultAliasDomain =
-    migadu.defaultAliasDomain && domains.includes(migadu.defaultAliasDomain)
+    migadu.defaultAliasDomain && aliasDomains.includes(migadu.defaultAliasDomain)
       ? migadu.defaultAliasDomain
       : null;
-  renderDefaultDomainOptions(domains, defaultAliasDomain);
+  renderDefaultDomainOptions(aliasDomains, defaultAliasDomain);
 }
 
 domainsEl.addEventListener("input", () => {
@@ -86,16 +94,19 @@ saveEl.addEventListener("click", async (): Promise<void> => {
   try {
     const domains = parseDomains(domainsEl.value);
     const defaultAliasDomain = defaultAliasDomainEl.value.trim() || null;
+    const domain = domainEl.value.trim();
 
+    if (!domain) {
+      throw new Error("Domain is required for Migadu API calls.");
+    }
     if (defaultAliasDomain && !domains.includes(defaultAliasDomain)) {
       throw new Error("Default alias domain must be included in domains.");
     }
 
-    const domainForLegacy = defaultAliasDomain ?? domains[0] ?? "";
     const migadu: MigaduConfig = {
       user: userEl.value.trim(),
       token: tokenEl.value.trim(),
-      domain: domainForLegacy,
+      domain,
       domains,
       defaultAliasDomain,
     };

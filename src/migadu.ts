@@ -11,21 +11,20 @@ export async function getConfigOrThrow(): Promise<MigaduConfig> {
 
   const user = migadu?.user?.trim();
   const token = migadu?.token?.trim();
-  const domains = Array.isArray(migadu?.domains)
+  const aliasDomains = Array.isArray(migadu?.domains)
     ? migadu.domains.map((d) => d.trim()).filter(Boolean)
     : [];
   const defaultAliasDomain =
-    migadu?.defaultAliasDomain && domains.includes(migadu.defaultAliasDomain)
+    migadu?.defaultAliasDomain && aliasDomains.includes(migadu.defaultAliasDomain)
       ? migadu.defaultAliasDomain
       : null;
-  const domain =
-    defaultAliasDomain ?? migadu?.domain?.trim() ?? (domains.length > 0 ? domains[0] : undefined);
+  const domain = migadu?.domain?.trim() ?? (aliasDomains.length > 0 ? aliasDomains[0] : undefined);
 
   if (!user || !token || !domain) {
     throw new Error("Missing configuration. Open Options and add your user, API token and domain.");
   }
 
-  return { user, token, domain, domains, defaultAliasDomain };
+  return { user, token, domain, domains: aliasDomains, defaultAliasDomain };
 }
 
 function basicAuthHeader(user: string, token: string): string {
