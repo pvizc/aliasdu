@@ -1,4 +1,5 @@
 import "./styles.css";
+import browser from "webextension-polyfill";
 import { createAlias, deleteAlias, listAliases } from "./migadu";
 import type { MigaduAlias, MigaduStorage } from "./types";
 import { createIcons, AtSign, RefreshCw, CirclePlus } from "lucide";
@@ -62,7 +63,7 @@ function setControlAvailability(enabled: boolean): void {
 }
 
 async function hasCompleteConfig(): Promise<boolean> {
-  const { migadu } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
+  const { migadu } = (await browser.storage.local.get("migadu")) as MigaduStorage;
 
   const user = migadu?.user?.trim();
   const token = migadu?.token?.trim();
@@ -205,7 +206,7 @@ function renderDomainMenu(): void {
 }
 
 async function loadDomains(): Promise<void> {
-  const { migadu = {} } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
+  const { migadu = {} } = (await browser.storage.local.get("migadu")) as MigaduStorage;
 
   const legacyDomain = migadu.domain?.trim();
   const storedDomains = Array.isArray(migadu.domains)
@@ -224,7 +225,7 @@ async function loadDomains(): Promise<void> {
 }
 
 async function setDefaultAliasDomain(domain: string | null): Promise<void> {
-  const { migadu = {} } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
+  const { migadu = {} } = (await browser.storage.local.get("migadu")) as MigaduStorage;
 
   const legacyDomain = migadu.domain?.trim();
   const storedDomains = Array.isArray(migadu.domains)
@@ -239,7 +240,7 @@ async function setDefaultAliasDomain(domain: string | null): Promise<void> {
   );
 
   const normalized = domain && normalizedDomains.includes(domain) ? domain : null;
-  await chrome.storage.local.set({
+  await browser.storage.local.set({
     migadu: {
       ...migadu,
       domains: normalizedDomains,
@@ -328,12 +329,12 @@ function render(visible: MigaduAlias[], totalCount: number): void {
 }
 
 async function readCache(): Promise<MigaduAlias[]> {
-  const { aliasCache } = (await chrome.storage.local.get("aliasCache")) as MigaduStorage;
+  const { aliasCache } = (await browser.storage.local.get("aliasCache")) as MigaduStorage;
   return aliasCache?.aliases ?? [];
 }
 
 async function writeCache(aliases: MigaduAlias[]): Promise<void> {
-  await chrome.storage.local.set({ aliasCache: { at: Date.now(), aliases } });
+  await browser.storage.local.set({ aliasCache: { at: Date.now(), aliases } });
 }
 
 async function load(): Promise<void> {
@@ -416,7 +417,7 @@ confirmDeleteBtn.addEventListener("click", async () => {
     await deleteAlias(localPart);
 
     allAliases = allAliases.filter((x) => x.local_part !== localPart);
-    await chrome.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
+    await browser.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
 
     const filtered = filterAliases(searchEl.value, allAliases);
     render(filtered, allAliases.length);
@@ -475,7 +476,7 @@ createBtn.addEventListener("click", async (): Promise<void> => {
 
     // Actualiza cache + estado local (sin fetch)
     allAliases = [createdNormalized, ...allAliases];
-    await chrome.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
+    await browser.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
 
     // Respeta búsqueda
     const filtered = filterAliases(searchEl.value, allAliases);

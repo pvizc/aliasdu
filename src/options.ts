@@ -1,4 +1,5 @@
 import "./styles.css";
+import browser from "webextension-polyfill";
 import { MigaduConfig, MigaduStorage } from "./types";
 import { createIcons, AtSign, Coffee } from "lucide";
 
@@ -56,7 +57,7 @@ function renderDefaultDomainOptions(domains: string[], selected: string | null):
 }
 
 async function load(): Promise<void> {
-  const { migadu = {} } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
+  const { migadu = {} } = (await browser.storage.local.get("migadu")) as MigaduStorage;
 
   userEl.value = migadu.user ?? "";
   tokenEl.value = migadu.token ?? "";
@@ -111,7 +112,7 @@ saveEl.addEventListener("click", async (): Promise<void> => {
       defaultAliasDomain,
     };
 
-    await chrome.storage.local.set({ migadu });
+    await browser.storage.local.set({ migadu });
     statusEl.textContent = "Save OK";
     renderDefaultDomainOptions(domains, defaultAliasDomain);
   } catch (e) {
