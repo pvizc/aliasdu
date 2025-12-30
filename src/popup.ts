@@ -40,6 +40,30 @@ function setStatus(msg: string): void {
   statusEl.textContent = msg;
 }
 
+const missingConfigMessage =
+  "Missing configuration. Open Options and add your user, API token and domain.";
+
+async function hasCompleteConfig(): Promise<boolean> {
+  const { migadu } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
+
+  const user = migadu?.user?.trim();
+  const token = migadu?.token?.trim();
+  const aliasDomains = Array.isArray(migadu?.domains)
+    ? migadu.domains.map((d) => d.trim()).filter(Boolean)
+    : [];
+  const domain = migadu?.domain?.trim() ?? (aliasDomains.length > 0 ? aliasDomains[0] : undefined);
+
+  return Boolean(user && token && domain);
+}
+
+function renderMissingConfig(): void {
+  listEl.innerHTML = `
+      <div class="border-l-2 border-amber-500 bg-amber-50 p-3 text-sm text-amber-800">
+        ${missingConfigMessage}
+      </div>`;
+  setStatus(missingConfigMessage);
+}
+
 function buildAliasToCopy(alias: MigaduAlias): string {
   const domain = defaultAliasDomain?.trim();
   const local = alias.local_part?.trim();
@@ -316,6 +340,12 @@ async function writeCache(aliases: MigaduAlias[]): Promise<void> {
 }
 
 async function load(): Promise<void> {
+  const configured = await hasCompleteConfig();
+  if (!configured) {
+    renderMissingConfig();
+    return;
+  }
+
   const aliases = await readCache();
   allAliases = aliases;
 
@@ -331,6 +361,12 @@ async function load(): Promise<void> {
 
 async function refresh(): Promise<void> {
   try {
+    const configured = await hasCompleteConfig();
+    if (!configured) {
+      renderMissingConfig();
+      return;
+    }
+
     setStatus("Updating...");
 
     const aliases = await listAliases();
