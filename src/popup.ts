@@ -273,7 +273,9 @@ function render(visible: MigaduAlias[], totalCount: number): void {
       "mt-0.5 shrink-0 text-xs font-semibold text-rose-600 opacity-80 hover:opacity-100 group-hover:underline";
     del.textContent = "Delete";
 
-    del.addEventListener("click", async () => {
+    del.addEventListener("click", async (event) => {
+      event.stopPropagation();
+
       try {
         del.disabled = true;
         setStatus(`Deleting ${a.local_part}…`);
@@ -294,6 +296,12 @@ function render(visible: MigaduAlias[], totalCount: number): void {
 
     actions.append(copyBtn, del);
     row.append(left, actions);
+    row.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("button")) return;
+
+      void copyAlias(a);
+    });
     listEl.appendChild(row);
   }
 }
