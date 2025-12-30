@@ -23,6 +23,10 @@ const domainMenuEl = $<HTMLDivElement>("domainMenu");
 const domainSelectorLabelEl = $<HTMLElement>("domainSelectorLabel");
 const createBtn = $<HTMLButtonElement>("createBtn");
 const cancelBtn = $<HTMLButtonElement>("cancelBtn");
+const confirmDeleteDialog = $<HTMLDialogElement>("confirmDeleteDialog");
+const confirmDeleteBtn = $<HTMLButtonElement>("confirmDeleteBtn");
+const cancelDeleteBtn = $<HTMLButtonElement>("cancelDeleteBtn");
+const confirmDeleteAliasEl = $<HTMLElement>("confirmDeleteAlias");
 
 const localPartEl = $<HTMLInputElement>("localPart");
 const destinationsEl = $<HTMLInputElement>("destinations");
@@ -306,22 +310,9 @@ function render(visible: MigaduAlias[], totalCount: number): void {
     del.addEventListener("click", async (event) => {
       event.stopPropagation();
 
-      try {
-        del.disabled = true;
-        setStatus(`Deleting ${a.local_part}…`);
-        await deleteAlias(a.local_part);
-
-        allAliases = allAliases.filter((x) => x.local_part !== a.local_part);
-        await chrome.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
-
-        const filtered = filterAliases(searchEl.value, allAliases);
-        render(filtered, allAliases.length);
-        setStatus(`Deleted · ${filtered.length}/${allAliases.length} aliases`);
-      } catch (e) {
-        setStatus(e instanceof Error ? e.message : String(e));
-      } finally {
-        del.disabled = false;
-      }
+      confirmDeleteAliasEl.textContent = a.address ?? a.local_part;
+      confirmDeleteBtn.dataset.localPart = a.local_part;
+      confirmDeleteDialog.showModal();
     });
 
     actions.append(copyBtn, del);
@@ -408,6 +399,44 @@ addBtn.addEventListener("click", () => {
 
 cancelBtn.addEventListener("click", () => {
   createBox.classList.add("hidden");
+});
+
+confirmDeleteBtn.addEventListener("click", async () => {
+  const localPart = confirmDeleteBtn.dataset.localPart;
+  if (!localPart) {
+    confirmDeleteDialog.close();
+    return;
+  }
+
+  try {
+    confirmDeleteBtn.disabled = true;
+    cancelDeleteBtn.disabled = true;
+    setStatus(`Deleting ${localPart}…`);
+
+    await deleteAlias(localPart);
+
+    allAliases = allAliases.filter((x) => x.local_part !== localPart);
+    await chrome.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
+
+    const filtered = filterAliases(searchEl.value, allAliases);
+    render(filtered, allAliases.length);
+    setStatus(`Deleted · ${filtered.length}/${allAliases.length} aliases`);
+    confirmDeleteDialog.close();
+  } catch (e) {
+    setStatus(e instanceof Error ? e.message : String(e));
+  } finally {
+    confirmDeleteBtn.disabled = false;
+    cancelDeleteBtn.disabled = false;
+    delete confirmDeleteBtn.dataset.localPart;
+  }
+});
+
+cancelDeleteBtn.addEventListener("click", () => {
+  confirmDeleteDialog.close();
+});
+
+confirmDeleteDialog.addEventListener("close", () => {
+  delete confirmDeleteBtn.dataset.localPart;
 });
 
 createBtn.addEventListener("click", async (): Promise<void> => {
