@@ -247,12 +247,6 @@ async function setDefaultAliasDomain(domain: string | null): Promise<void> {
   defaultAliasDomain = normalized;
   updateDomainSelectorLabel();
   renderDomainMenu();
-
-  setStatus(
-    normalized
-      ? `Default alias domain: ${normalized}`
-      : "Default alias domain cleared (copying raw alias).",
-  );
 }
 
 function render(visible: MigaduAlias[], totalCount: number): void {
