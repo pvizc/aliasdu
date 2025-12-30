@@ -1,9 +1,9 @@
 export type MigaduConfig = {
   user: string;
   token: string;
-  domain: string; // Legacy single-domain config
-  domains: string[];
-  defaultAliasDomain: string | null;
+  domain: string; // Primary Migadu domain used for API calls
+  domains: string[]; // Alias domains used only for clipboard output
+  defaultAliasDomain: string | null; // Alias domain selected for copy-to-clipboard
 };
 
 export type MigaduStorage = {
