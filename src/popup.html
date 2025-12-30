@@ -23,6 +23,21 @@
         </div>
 
         <div class="flex items-center gap-2">
+          <div class="relative">
+            <button
+              id="domainSelector"
+              type="button"
+              class="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+              aria-label="Select default domain"
+              title="Select default alias domain"
+            >
+              <span id="domainSelectorLabel" class="text-xs text-slate-800">—</span>
+            </button>
+            <div
+              id="domainMenu"
+              class="absolute right-0 z-20 mt-2 hidden w-52 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm shadow-lg"
+            ></div>
+          </div>
           <button
             id="refresh"
             type="button"
@@ -30,7 +45,11 @@
             aria-label="Refresh"
             title="Refresh"
           >
-            <i data-lucide="refresh-cw" aria-hidden="true" class="size-4 text-slate-700 stroke-current"></i>
+            <i
+              data-lucide="refresh-cw"
+              aria-hidden="true"
+              class="size-4 text-slate-700 stroke-current"
+            ></i>
           </button>
           <button
             id="add"
@@ -39,7 +58,11 @@
             aria-label="New alias"
             title="New alias"
           >
-            <i data-lucide="circle-plus" aria-hidden="true" class="size-4 text-white stroke-current"></i>
+            <i
+              data-lucide="circle-plus"
+              aria-hidden="true"
+              class="size-4 text-white stroke-current"
+            ></i>
           </button>
         </div>
       </header>
