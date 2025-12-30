@@ -18,6 +18,9 @@ const listEl = $<HTMLElement>("list");
 const createBox = $<HTMLElement>("create");
 const addBtn = $<HTMLButtonElement>("add");
 const refreshBtn = $<HTMLButtonElement>("refresh");
+const domainSelectorBtn = $<HTMLButtonElement>("domainSelector");
+const domainMenuEl = $<HTMLDivElement>("domainMenu");
+const domainSelectorLabelEl = $<HTMLElement>("domainSelectorLabel");
 const createBtn = $<HTMLButtonElement>("createBtn");
 const cancelBtn = $<HTMLButtonElement>("cancelBtn");
 
@@ -65,6 +68,111 @@ function escapeHtml(s: string): string {
         return c;
     }
   });
+}
+
+let availableDomains: string[] = [];
+let defaultAliasDomain: string | null = null;
+
+function updateDomainSelectorLabel(): void {
+  const label = availableDomains.length === 0 ? "No domains" : defaultAliasDomain ?? "None";
+  domainSelectorLabelEl.textContent = label;
+  domainSelectorBtn.disabled = availableDomains.length === 0;
+  domainSelectorBtn.title =
+    availableDomains.length === 0
+      ? "Configure domains in Options"
+      : "Select default alias domain";
+
+  if (availableDomains.length === 0) {
+    domainMenuEl.innerHTML =
+      '<div class="px-3 py-2 text-xs text-slate-500">Configure domains in Options.</div>';
+  }
+}
+
+function closeDomainMenu(): void {
+  domainMenuEl.classList.add("hidden");
+}
+
+function renderDomainMenu(): void {
+  domainMenuEl.innerHTML = "";
+
+  if (availableDomains.length === 0) {
+    domainMenuEl.innerHTML =
+      '<div class="px-3 py-2 text-xs text-slate-500">Configure domains in Options.</div>';
+    return;
+  }
+
+  const options: { label: string; value: string | null }[] = [
+    { label: "None", value: null },
+    ...availableDomains.map((d) => ({ label: d, value: d })),
+  ];
+
+  for (const { label, value } of options) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50";
+
+    const labelEl = document.createElement("span");
+    labelEl.textContent = label;
+
+    const indicator = document.createElement("span");
+    indicator.className = "text-xs font-semibold text-lime-600";
+    indicator.textContent = value === defaultAliasDomain ? "✓" : "";
+
+    btn.append(labelEl, indicator);
+
+    btn.addEventListener("click", async () => {
+      closeDomainMenu();
+      await setDefaultAliasDomain(value);
+    });
+
+    domainMenuEl.append(btn);
+  }
+}
+
+async function loadDomains(): Promise<void> {
+  const { migadu = {} } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
+
+  const legacyDomain = migadu.domain?.trim();
+  const storedDomains = Array.isArray(migadu.domains) ? migadu.domains : [];
+  availableDomains = Array.from(new Set([...storedDomains, legacyDomain].filter(Boolean) as string[]));
+
+  defaultAliasDomain =
+    migadu.defaultAliasDomain && availableDomains.includes(migadu.defaultAliasDomain)
+      ? migadu.defaultAliasDomain
+      : null;
+
+  updateDomainSelectorLabel();
+  renderDomainMenu();
+}
+
+async function setDefaultAliasDomain(domain: string | null): Promise<void> {
+  const { migadu = {} } = (await chrome.storage.local.get("migadu")) as MigaduStorage;
+
+  const legacyDomain = migadu.domain?.trim();
+  const storedDomains = Array.isArray(migadu.domains) ? migadu.domains : [];
+  const normalizedDomains = Array.from(
+    new Set([...storedDomains, legacyDomain].filter(Boolean) as string[]),
+  );
+
+  const normalized = domain && normalizedDomains.includes(domain) ? domain : null;
+  await chrome.storage.local.set({
+    migadu: {
+      ...migadu,
+      defaultAliasDomain: normalized,
+    },
+  });
+
+  availableDomains = normalizedDomains;
+  defaultAliasDomain = normalized;
+  updateDomainSelectorLabel();
+  renderDomainMenu();
+
+  setStatus(
+    normalized
+      ? `Default alias domain: ${normalized}`
+      : "Default alias domain cleared (using first configured domain).",
+  );
 }
 
 function render(visible: MigaduAlias[], totalCount: number): void {
@@ -175,6 +283,18 @@ async function refresh(): Promise<void> {
 
 refreshBtn.addEventListener("click", () => void refresh());
 
+domainSelectorBtn.addEventListener("click", () => {
+  if (domainSelectorBtn.disabled) return;
+  domainMenuEl.classList.toggle("hidden");
+});
+
+document.addEventListener("click", (event) => {
+  const target = event.target as Node;
+  if (!domainMenuEl.contains(target) && !domainSelectorBtn.contains(target)) {
+    closeDomainMenu();
+  }
+});
+
 addBtn.addEventListener("click", () => {
   createBox.classList.toggle("hidden");
 });
@@ -246,4 +366,5 @@ searchEl.addEventListener("input", () => {
   }, 80);
 });
 
+void loadDomains();
 void load();
