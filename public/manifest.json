@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Aliasdu",
+  "name": "aliasdu",
   "version": "0.1.0",
   "permissions": ["storage"],
   "host_permissions": ["https://api.migadu.com/*"],

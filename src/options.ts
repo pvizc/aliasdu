@@ -65,9 +65,9 @@ async function load(): Promise<void> {
   const storedDomains = Array.isArray(migadu.domains) ? migadu.domains : [];
   const aliasDomains = Array.from(
     new Set(
-      (storedDomains.length > 0 ? storedDomains : legacyDomain ? [legacyDomain] : []).map((d) =>
-        d.trim(),
-      ).filter(Boolean),
+      (storedDomains.length > 0 ? storedDomains : legacyDomain ? [legacyDomain] : [])
+        .map((d) => d.trim())
+        .filter(Boolean),
     ),
   );
 
@@ -112,7 +112,7 @@ saveEl.addEventListener("click", async (): Promise<void> => {
     };
 
     await chrome.storage.local.set({ migadu });
-    statusEl.textContent = "Guardado ✅";
+    statusEl.textContent = "Save OK";
     renderDefaultDomainOptions(domains, defaultAliasDomain);
   } catch (e) {
     statusEl.textContent = e instanceof Error ? e.message : String(e);
