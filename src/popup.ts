@@ -40,6 +40,37 @@ function setStatus(msg: string): void {
   statusEl.textContent = msg;
 }
 
+function buildAliasToCopy(alias: MigaduAlias): string {
+  const domain = defaultAliasDomain?.trim();
+  const local = alias.local_part?.trim();
+  const address = alias.address?.trim();
+
+  if (domain && local) return `${local}@${domain}`;
+  if (address) return address;
+  if (local) return local;
+
+  throw new Error("No alias data available to copy.");
+}
+
+async function copyAlias(alias: MigaduAlias, trigger?: HTMLButtonElement): Promise<void> {
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error("Clipboard API unavailable or permission denied.");
+    }
+
+    trigger && (trigger.disabled = true);
+    const toCopy = buildAliasToCopy(alias);
+
+    await navigator.clipboard.writeText(toCopy);
+    setStatus(`Copied ${toCopy}`);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    setStatus(`Copy failed: ${message}`);
+  } finally {
+    trigger && (trigger.disabled = false);
+  }
+}
+
 function filterAliases(q: string, aliases: MigaduAlias[]): MigaduAlias[] {
   const query = q.trim().toLowerCase();
   if (!query) return aliases;
@@ -213,6 +244,16 @@ function render(visible: MigaduAlias[], totalCount: number): void {
 
     left.append(addr, dest);
 
+    const actions = document.createElement("div");
+    actions.className = "mt-0.5 flex shrink-0 items-center gap-2";
+
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className =
+      "text-xs font-semibold text-slate-700 opacity-80 hover:opacity-100 group-hover:underline";
+    copyBtn.textContent = "Copy";
+    copyBtn.addEventListener("click", () => void copyAlias(a, copyBtn));
+
     const del = document.createElement("button");
     del.type = "button";
     del.className =
@@ -238,7 +279,8 @@ function render(visible: MigaduAlias[], totalCount: number): void {
       }
     });
 
-    row.append(left, del);
+    actions.append(copyBtn, del);
+    row.append(left, actions);
     listEl.appendChild(row);
   }
 }
