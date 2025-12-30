@@ -384,6 +384,8 @@ createBtn.addEventListener("click", async (): Promise<void> => {
       destinations: Array.isArray(created.destinations) ? created.destinations : [],
     };
 
+    void copyAlias(createdNormalized);
+
     // Limpia UI
     localPartEl.value = "";
     destinationsEl.value = "";
@@ -397,7 +399,9 @@ createBtn.addEventListener("click", async (): Promise<void> => {
     // Respeta búsqueda
     const filtered = filterAliases(searchEl.value, allAliases);
     render(filtered, allAliases.length);
-    setStatus(`Creado · ${filtered.length}/${allAliases.length} aliases`);
+    setStatus(
+      `Created · ${filtered.length}/${allAliases.length} aliases (copied to clipboard). Migadu changes may take a few minutes to propagate.`,
+    );
   } catch (e) {
     setStatus(e instanceof Error ? e.message : String(e));
   } finally {
