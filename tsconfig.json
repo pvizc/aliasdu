@@ -6,5 +6,6 @@
     "strict": true,
     "noEmit": true,
     "types": ["chrome-types", "webextension-polyfill", "vite/client", "node"]
-  }
+  },
+  "include": ["src"]
 }

@@ -20,6 +20,7 @@ export type MigaduAlias = {
 
 export type AliasCache = {
   at: number;
+  count: number;
   aliases: MigaduAlias[];
 };
 
@@ -28,3 +29,5 @@ export type CreateAliasInput = {
   destinationsCsv: string; // "a@dominio.com,b@dominio.com"
   isInternal?: boolean;
 };
+
+

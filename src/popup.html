@@ -1,168 +1,236 @@
 <!doctype html>
-<html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Aliases</title>
-  </head>
+<html lang="en">
 
-  <body class="w-95 bg-white p-3 font-sans text-slate-900">
-    <div class="sticky top-0 z-10 -mx-3 bg-white px-3 pb-3 pt-3">
-      <header class="flex items-center justify-between gap-2">
-        <div class="flex items-center gap-2">
-          <div
-            class="grid size-9 place-items-center rounded-xl bg-lime-500 text-white"
-            aria-hidden="true"
-          >
-            <i data-lucide="at-sign" class="size-5 text-white stroke-current"></i>
-          </div>
-          <div class="leading-tight">
-            <div class="text-sm font-semibold">aliasdu</div>
-            <div class="text-xs text-slate-500">Migadu · Aliases</div>
-          </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aliases</title>
+</head>
+
+<body class="w-95 bg-white p-3 font-sans text-slate-900" x-data="aliasesUi">
+  <div class="sticky top-0 z-10 -mx-3 bg-white px-3 pb-3 pt-3">
+    <header class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2">
+      <!-- Col 1: Logo + texto -->
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="grid size-9 place-items-center rounded-xl bg-lime-500 text-white" aria-hidden="true">
+          <i data-lucide="at-sign" class="size-5 text-white stroke-current"></i>
         </div>
-
-        <div class="flex items-center gap-2">
-          <div class="relative">
-            <button
-              id="domainSelector"
-              type="button"
-              class="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-              aria-label="Select default domain"
-              title="Select default alias domain"
-            >
-              <span id="domainSelectorLabel" class="text-xs text-slate-800 text-nowrap">—</span>
-            </button>
-            <div
-              id="domainMenu"
-              class="absolute right-0 z-20 mt-2 hidden w-52 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm shadow-lg"
-            ></div>
-          </div>
-          <button
-            id="refresh"
-            type="button"
-            class="grid place-items-center rounded-xl border border-slate-200 bg-white size-9 text-sm shadow-sm hover:bg-slate-50 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label="Refresh"
-            title="Refresh"
-          >
-            <i
-              data-lucide="refresh-cw"
-              aria-hidden="true"
-              class="size-4 text-slate-700 stroke-current"
-            ></i>
-          </button>
-          <button
-            id="add"
-            type="button"
-            class="grid place-items-center rounded-xl bg-lime-500 size-9 text-sm font-semibold text-white shadow-sm hover:bg-lime-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label="New alias"
-            title="New alias"
-          >
-            <i
-              data-lucide="circle-plus"
-              aria-hidden="true"
-              class="size-4 text-white stroke-current"
-            ></i>
-          </button>
+        <div class="leading-tight min-w-0">
+          <div class="text-sm font-semibold">aliasdu</div>
+          <div class="text-xs text-slate-500">Migadu · Aliases</div>
         </div>
-      </header>
+      </div>
 
-      <div class="mt-3 h-px bg-slate-200/70"></div>
-      <div class="mt-3">
-        <input
-          id="search"
-          type="search"
-          placeholder="Search..."
+      <!-- Col 2: Domains -->
+      <div class="relative">
+        <button type="button"
+          class="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label="Select default domain" :disabled="domains.length === 0"
+          :title="domains.length === 0 ? 'Configure alias domains in Options' : 'Select default alias domain'"
+          @click="domains.length && (domainMenuOpen = !domainMenuOpen)">
+          <span class="text-xs text-slate-800 text-nowrap" x-text="domainLabel"></span>
+        </button>
+
+        <div
+          class="absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm shadow-lg"
+          x-show="domainMenuOpen" x-cloak @click.outside="domainMenuOpen = false">
+          <template x-if="domains.length === 0">
+            <div class="px-3 py-2 text-xs text-slate-500">
+              Configure alias domains in Options.
+            </div>
+          </template>
+
+          <template x-if="domains.length > 0">
+            <div>
+              <button type="button"
+                class="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                @click="setDefaultAliasDomain(null)">
+                <span>None</span>
+                <span class="text-xs font-semibold text-lime-600"
+                  x-text="defaultAliasDomain === null ? '✓' : ''"></span>
+              </button>
+
+              <template x-for="d in domains" :key="d">
+                <button type="button"
+                  class="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                  @click="setDefaultAliasDomain(d)">
+                  <span x-text="d"></span>
+                  <span class="text-xs font-semibold text-lime-600" x-text="d === defaultAliasDomain ? '✓' : ''"></span>
+                </button>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Col 3: Refresh -->
+      <button id="refresh" type="button"
+        class="grid place-items-center rounded-xl border border-slate-200 bg-white size-9 text-sm shadow-sm hover:bg-slate-50 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+        aria-label="Refresh" :title="refreshTitle" :disabled="!enabled" @click="refresh()">
+        <i data-lucide="refresh-cw" aria-hidden="true" class="size-4 text-slate-700 stroke-current"></i>
+      </button>
+
+      <!-- Col 4: New -->
+      <button id="add" type="button"
+        class="grid place-items-center rounded-xl bg-lime-500 size-9 text-sm font-semibold text-white shadow-sm hover:bg-lime-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+        aria-label="New alias" :title="addTitle" :disabled="!enabled" @click="toggleCreate()">
+        <i data-lucide="circle-plus" aria-hidden="true" class="size-4 text-white stroke-current"></i>
+      </button>
+
+      <!-- Fila 2: Divider -->
+      <div class="col-span-4 mt-3 h-px bg-slate-200/70"></div>
+
+      <!-- Fila 2: Search -->
+      <div class="col-span-4 mt-3">
+        <input id="search" type="search"
           class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500 disabled:cursor-not-allowed disabled:bg-slate-50"
-        />
+          x-model.debounce.80ms="search" :disabled="!enabled"
+          :placeholder="enabled ? 'Search...' : 'Configure Migadu to search aliases'" />
       </div>
+    </header>
+  </div>
+
+  <section class="mt-3 border-l-2 border-lime-500 bg-slate-50/50 p-3" x-show="createOpen" x-cloak>
+    <div class="text-xs font-semibold text-slate-700">New Alias</div>
+
+    <label class="mt-3 block text-[11px] font-medium text-slate-600">Local part</label>
+    <input
+      class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
+      placeholder="spotify" :value="createLocalPart" @input="setCreateLocalPart($event.target.value)"
+      :disabled="!enabled || creating" />
+
+    <label class="mt-3 block text-[11px] font-medium text-slate-600">Destinations (CSV)</label>
+    <input
+      class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
+      :value="createDestinationsCsv" @input="setCreateDestinationsCsv($event.target.value)"
+      :disabled="!enabled || creating" />
+
+      <!--
+    <label class="mt-3 items-center gap-2 text-xs text-slate-700 hidden">
+      <input type="checkbox" class="size-4 accent-lime-600" x-model="createForm.isInternal"
+        :disabled="!enabled || creating" />
+      Internal
+    </label> -->
+
+    <p class="mt-1 text-[11px] text-slate-500">
+      Migadu changes can take a few minutes to propagate after creating or updating an alias.
+    </p>
+
+    <div class="mt-3 flex gap-2">
+      <button type="button"
+        class="flex-1 rounded-lg bg-lime-500 px-3 py-2 text-sm font-semibold text-white hover:bg-lime-600 disabled:opacity-60 disabled:cursor-not-allowed"
+        @click="createAliasFromForm()" :disabled="!enabled || creating">
+        <span x-text="creating ? 'Creating...' : 'Create'"></span>
+      </button>
+
+      <button type="button"
+        class="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+        @click="closeCreate()" :disabled="creating">
+        Cancel
+      </button>
     </div>
+  </section>
 
-    <div class="mt-3 flex items-center justify-between">
-      <p id="status" class="text-xs text-slate-500">—</p>
-      <span
-        class="rounded-full bg-lime-50 px-2 py-0.5 text-[11px] font-medium text-lime-700 text-nowrap"
-        >Address Aliases</span
-      >
+  <template x-if="missingConfig">
+    <div class="border-l-2 border-amber-500 bg-amber-50 p-3 text-sm text-amber-800" x-text="missingConfigMessage"></div>
+  </template>
+
+  <!-- lista normal -->
+  <template x-if="!missingConfig">
+    <div>
+      <div class="mt-3 flex items-center justify-between">
+        <p id="status" class="text-xs text-slate-500">—</p>
+        <span class="rounded-full bg-lime-50 px-2 py-0.5 text-[11px] font-medium text-lime-700 text-nowrap">Address
+          Aliases</span>
+      </div>
+
+      <!-- status -->
+      <p class="mt-2 text-sm text-slate-500" x-text="isRefreshing ? status : cacheStatus"></p>
+
+      <!-- LIST AREA -->
+
+      <!-- Empty cache -->
+      <template x-if="totalCount === 0">
+        <div class="border-l-2 border-lime-500 bg-slate-50/50 p-3 text-sm text-slate-600">
+          Empty cache. Click <span class="font-semibold">↻</span> to fetch.
+        </div>
+      </template>
+
+      <!-- No matches -->
+      <template x-if="totalCount > 0 && visible.length === 0">
+        <div class="border-l-2 border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-600">
+          No matches
+          <template x-if="search">
+            <span>
+              for <span class="font-semibold" x-text="`&quot;${search}&quot;`"></span>
+            </span>
+          </template>
+          .
+        </div>
+      </template>
+
+      <!-- Rows -->
+      <template x-if="totalCount > 0 && visible.length > 0">
+        <div>
+          <template x-for="a in visible" :key="a.address">
+            <div
+              class="group flex items-start justify-between gap-3 border-l-2 border-transparent px-3 py-3 hover:border-lime-500 hover:bg-slate-50/60"
+              @click="copyAlias(a)">
+              <div class="min-w-0">
+                <div class="truncate text-sm font-semibold text-slate-900" x-text="a.address"></div>
+                <div class="mt-1 truncate text-xs text-slate-500" x-text="destinationsText(a)"></div>
+              </div>
+
+              <div class="mt-0.5 flex shrink-0 items-center gap-2">
+                <button type="button"
+                  class="text-xs font-semibold text-slate-700 opacity-80 hover:opacity-100 group-hover:underline"
+                  @click.stop="copyAlias(a)" :disabled="copyingAddress === a.address">
+                  <span x-text="copyingAddress === a.address ? 'Copying...' : 'Copy'"></span>
+                </button>
+
+                <button type="button"
+                  class="mt-0.5 shrink-0 text-xs font-semibold text-rose-600 opacity-80 hover:opacity-100 group-hover:underline"
+                  @click.stop="openDelete(a)">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <dialog x-ref="confirmDeleteDialog"
+        class="w-[92%] max-w-sm rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl mt-6 mx-auto"
+        @close="pendingDelete = null">
+        <div class="border-b border-slate-200 px-4 py-3">
+          <p class="text-sm font-semibold text-slate-900">Delete alias?</p>
+          <p class="mt-1 text-xs text-slate-600">This action removes the alias in Migadu.</p>
+        </div>
+
+        <div class="px-4 py-3">
+          <p class="text-[11px] font-medium text-slate-600">Alias</p>
+          <p class="mt-1 truncate text-sm font-semibold text-slate-900" x-text="pendingDeleteLabel"></p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+          <button type="button"
+            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+            @click="$refs.confirmDeleteDialog.close()" :disabled="deleting">
+            Cancel
+          </button>
+
+          <button type="button"
+            class="rounded-lg bg-rose-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-rose-600 disabled:opacity-60 disabled:cursor-not-allowed"
+            @click="confirmDelete()" :disabled="deleting">
+            <span x-text="deleting ? 'Deleting...' : 'Delete'"></span>
+          </button>
+        </div>
+      </dialog>
+
     </div>
+  </template>
 
-    <section id="create" class="mt-3 hidden border-l-2 border-lime-500 bg-slate-50/50 p-3">
-      <div class="text-xs font-semibold text-slate-700">New Alias</div>
+  <script type="module" src="./popup.ts"></script>
+</body>
 
-      <label class="mt-3 block text-[11px] font-medium text-slate-600">Local part</label>
-      <input
-        id="localPart"
-        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
-        placeholder="spotify"
-      />
-
-      <label class="mt-3 block text-[11px] font-medium text-slate-600">Destinations (CSV)</label>
-      <input
-        id="destinations"
-        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
-      />
-
-      <label class="mt-3 items-center gap-2 text-xs text-slate-700 hidden">
-        <input id="isInternal" type="checkbox" class="size-4 accent-lime-600" />
-        Internal
-      </label>
-
-      <p class="mt-1 text-[11px] text-slate-500">
-        Migadu changes can take a few minutes to propagate after creating or updating an alias.
-      </p>
-
-      <div class="mt-3 flex gap-2">
-        <button
-          id="createBtn"
-          type="button"
-          class="flex-1 rounded-lg bg-lime-500 px-3 py-2 text-sm font-semibold text-white hover:bg-lime-600"
-        >
-          Create
-        </button>
-        <button
-          id="cancelBtn"
-          type="button"
-          class="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          Cancel
-        </button>
-      </div>
-    </section>
-
-    <div id="list" class="mt-3"></div>
-
-    <dialog
-      id="confirmDeleteDialog"
-      class="w-[92%] max-w-sm rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl mt-6 mx-auto"
-    >
-      <div class="border-b border-slate-200 px-4 py-3">
-        <p class="text-sm font-semibold text-slate-900">Delete alias?</p>
-        <p class="mt-1 text-xs text-slate-600">This action removes the alias in Migadu.</p>
-      </div>
-
-      <div class="px-4 py-3">
-        <p class="text-[11px] font-medium text-slate-600">Alias</p>
-        <p id="confirmDeleteAlias" class="mt-1 truncate text-sm font-semibold text-slate-900"></p>
-      </div>
-
-      <div class="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
-        <button
-          id="cancelDeleteBtn"
-          type="button"
-          class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          Cancel
-        </button>
-        <button
-          id="confirmDeleteBtn"
-          type="button"
-          class="rounded-lg bg-rose-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-rose-600"
-        >
-          Delete
-        </button>
-      </div>
-    </dialog>
-
-    <script type="module" src="./popup.ts"></script>
-  </body>
 </html>

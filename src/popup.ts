@@ -1,511 +1,369 @@
 import "./styles.css";
 import browser from "webextension-polyfill";
 import { createAlias, deleteAlias, listAliases } from "./migadu";
-import type { MigaduAlias, MigaduStorage } from "./types";
+import type { MigaduAlias, MigaduConfig, MigaduStorage } from "./types";
 import { createIcons, AtSign, RefreshCw, CirclePlus } from "lucide";
+import Alpine from '@alpinejs/csp';
+import { normalizeAliasList, storage } from "./storage";
 
-const $ = <T extends HTMLElement>(id: string): T => {
-  const el = document.getElementById(id);
-  if (!el) throw new Error(`Missing element: #${id}`);
-  return el as T;
-};
+document.addEventListener("alpine:init", () => {
+  Alpine.data("aliasesUi", () => ({
+    enabled: false,
+    status: "",
+    search: "",
+    isRefreshing: false,
+    copyingAddress: "" as string | null,
+    missingConfig: false,
+    missingConfigMessage: "Missing configuration. Open Options and add your user, API token and domain.",
 
-const searchEl = $<HTMLInputElement>("search");
-let allAliases: MigaduAlias[] = [];
+    baseMailboxDomain: "",
 
-const statusEl = $<HTMLElement>("status");
-const listEl = $<HTMLElement>("list");
+    aliases: [] as MigaduAlias[],
 
-const createBox = $<HTMLElement>("create");
-const addBtn = $<HTMLButtonElement>("add");
-const refreshBtn = $<HTMLButtonElement>("refresh");
-const domainSelectorBtn = $<HTMLButtonElement>("domainSelector");
-const domainMenuEl = $<HTMLDivElement>("domainMenu");
-const domainSelectorLabelEl = $<HTMLElement>("domainSelectorLabel");
-const createBtn = $<HTMLButtonElement>("createBtn");
-const cancelBtn = $<HTMLButtonElement>("cancelBtn");
-const confirmDeleteDialog = $<HTMLDialogElement>("confirmDeleteDialog");
-const confirmDeleteBtn = $<HTMLButtonElement>("confirmDeleteBtn");
-const cancelDeleteBtn = $<HTMLButtonElement>("cancelDeleteBtn");
-const confirmDeleteAliasEl = $<HTMLElement>("confirmDeleteAlias");
+    pendingDelete: null as MigaduAlias | null,
+    deleting: false,
 
-const localPartEl = $<HTMLInputElement>("localPart");
-const destinationsEl = $<HTMLInputElement>("destinations");
-const isInternalEl = $<HTMLInputElement>("isInternal"); // checkbox
+    // domains
+    domains: [] as string[],
+    defaultAliasDomain: null as string | null,
+    domainMenuOpen: false,
 
-createIcons({
-  icons: {
-    AtSign,
-    RefreshCw,
-    CirclePlus,
-  },
-});
+    // create box
+    createOpen: false,
+    creating: false,
 
-function setStatus(msg: string): void {
-  statusEl.textContent = msg;
-}
+    createLocalPart: "",
+    createDestinationsCsv: "",
+    createIsInternal: false,
 
-const missingConfigMessage =
-  "Missing configuration. Open Options and add your user, API token and domain.";
+    async init() {
+      this.setStatus("Loading...");
 
-function setControlAvailability(enabled: boolean): void {
-  refreshBtn.disabled = !enabled;
-  addBtn.disabled = !enabled;
-  searchEl.disabled = !enabled;
-
-  refreshBtn.title = enabled ? "Refresh" : missingConfigMessage;
-  addBtn.title = enabled ? "New alias" : missingConfigMessage;
-  searchEl.placeholder = enabled ? "Search..." : "Configure Migadu to search aliases";
-
-  if (!enabled) {
-    createBox.classList.add("hidden");
-  }
-}
-
-async function hasCompleteConfig(): Promise<boolean> {
-  const { migadu } = (await browser.storage.local.get("migadu")) as MigaduStorage;
-
-  const user = migadu?.user?.trim();
-  const token = migadu?.token?.trim();
-  const aliasDomains = Array.isArray(migadu?.domains)
-    ? migadu.domains.map((d) => d.trim()).filter(Boolean)
-    : [];
-  const domain = migadu?.domain?.trim() ?? (aliasDomains.length > 0 ? aliasDomains[0] : undefined);
-
-  return Boolean(user && token && domain);
-}
-
-function renderMissingConfig(): void {
-  setControlAvailability(false);
-  listEl.innerHTML = `
-      <div class="border-l-2 border-amber-500 bg-amber-50 p-3 text-sm text-amber-800">
-        ${missingConfigMessage}
-      </div>`;
-  setStatus("Missing configuration.");
-}
-
-function buildAliasToCopy(alias: MigaduAlias): string {
-  const domain = defaultAliasDomain?.trim();
-  const local = alias.local_part?.trim();
-  const address = alias.address?.trim();
-
-  if (domain && local) return `${local}@${domain}`;
-  if (address) return address;
-  if (local) return local;
-
-  throw new Error("No alias data available to copy.");
-}
-
-async function copyAlias(alias: MigaduAlias, trigger?: HTMLButtonElement): Promise<void> {
-  try {
-    if (!navigator.clipboard?.writeText) {
-      throw new Error("Clipboard API unavailable or permission denied.");
-    }
-
-    trigger && (trigger.disabled = true);
-    const toCopy = buildAliasToCopy(alias);
-
-    await navigator.clipboard.writeText(toCopy);
-    setStatus(`Copied ${toCopy}`);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    setStatus(`Copy failed: ${message}`);
-  } finally {
-    trigger && (trigger.disabled = false);
-  }
-}
-
-function filterAliases(q: string, aliases: MigaduAlias[]): MigaduAlias[] {
-  const query = q.trim().toLowerCase();
-  if (!query) return aliases;
-
-  return aliases.filter((a) => {
-    const haystack =
-      `${a.address} ${(a.destinations ?? []).join(", ")} ${a.local_part}`.toLowerCase();
-    return haystack.includes(query);
-  });
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      case "'":
-        return "&#39;";
-      default:
-        return c;
-    }
-  });
-}
-
-let availableDomains: string[] = [];
-let defaultAliasDomain: string | null = null;
-
-function updateDomainSelectorLabel(): void {
-  const label = availableDomains.length === 0 ? "No alias domains" : (defaultAliasDomain ?? "None");
-  domainSelectorLabelEl.textContent = label;
-  domainSelectorBtn.disabled = availableDomains.length === 0;
-  domainSelectorBtn.title =
-    availableDomains.length === 0
-      ? "Configure alias domains in Options"
-      : "Select default alias domain";
-
-  if (availableDomains.length === 0) {
-    domainMenuEl.innerHTML =
-      '<div class="px-3 py-2 text-xs text-slate-500">Configure alias domains in Options.</div>';
-  }
-}
-
-function closeDomainMenu(): void {
-  domainMenuEl.classList.add("hidden");
-}
-
-function renderDomainMenu(): void {
-  domainMenuEl.innerHTML = "";
-
-  if (availableDomains.length === 0) {
-    domainMenuEl.innerHTML =
-      '<div class="px-3 py-2 text-xs text-slate-500">Configure alias domains in Options.</div>';
-    return;
-  }
-
-  const options: { label: string; value: string | null }[] = [
-    { label: "None", value: null },
-    ...availableDomains.map((d) => ({ label: d, value: d })),
-  ];
-
-  for (const { label, value } of options) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className =
-      "flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50";
-
-    const labelEl = document.createElement("span");
-    labelEl.textContent = label;
-
-    const indicator = document.createElement("span");
-    indicator.className = "text-xs font-semibold text-lime-600";
-    indicator.textContent = value === defaultAliasDomain ? "✓" : "";
-
-    btn.append(labelEl, indicator);
-
-    btn.addEventListener("click", async () => {
-      closeDomainMenu();
-      await setDefaultAliasDomain(value);
-    });
-
-    domainMenuEl.append(btn);
-  }
-}
-
-async function loadDomains(): Promise<void> {
-  const { migadu = {} } = (await browser.storage.local.get("migadu")) as MigaduStorage;
-
-  const legacyDomain = migadu.domain?.trim();
-  const storedDomains = Array.isArray(migadu.domains)
-    ? migadu.domains.map((d) => d.trim()).filter(Boolean)
-    : [];
-  const normalized = storedDomains.length > 0 ? storedDomains : legacyDomain ? [legacyDomain] : [];
-  availableDomains = Array.from(new Set(normalized.filter(Boolean) as string[]));
-
-  defaultAliasDomain =
-    migadu.defaultAliasDomain && availableDomains.includes(migadu.defaultAliasDomain)
-      ? migadu.defaultAliasDomain
-      : null;
-
-  updateDomainSelectorLabel();
-  renderDomainMenu();
-}
-
-async function setDefaultAliasDomain(domain: string | null): Promise<void> {
-  const { migadu = {} } = (await browser.storage.local.get("migadu")) as MigaduStorage;
-
-  const legacyDomain = migadu.domain?.trim();
-  const storedDomains = Array.isArray(migadu.domains)
-    ? migadu.domains.map((d) => d.trim()).filter(Boolean)
-    : [];
-  const normalizedDomains = Array.from(
-    new Set(
-      (storedDomains.length > 0 ? storedDomains : legacyDomain ? [legacyDomain] : []).filter(
-        Boolean,
-      ) as string[],
-    ),
-  );
-
-  const normalized = domain && normalizedDomains.includes(domain) ? domain : null;
-  await browser.storage.local.set({
-    migadu: {
-      ...migadu,
-      domains: normalizedDomains,
-      defaultAliasDomain: normalized,
+      queueMicrotask(() => void this.boot());
     },
-  });
 
-  availableDomains = normalizedDomains;
-  defaultAliasDomain = normalized;
-  updateDomainSelectorLabel();
-  renderDomainMenu();
-}
+    async boot() {
+      try {
+        const cfg = await storage.getResolvedConfig();
 
-function render(visible: MigaduAlias[], totalCount: number): void {
-  listEl.innerHTML = "";
+        if (!cfg) {
+          this.setControlAvailability(false);
+          this.renderMissingConfig();
+          return;
+        }
 
-  if (totalCount === 0) {
-    listEl.innerHTML = `
-      <div class="border-l-2 border-lime-500 bg-slate-50/50 p-3 text-sm text-slate-600">
-        Empty cache. Click <span class="font-semibold">↻</span> to fetch.
-      </div>`;
-    return;
-  }
+        this.missingConfig = false;
+        this.setControlAvailability(true);
 
-  if (visible.length === 0) {
-    const q = searchEl.value.trim();
-    listEl.innerHTML = `
-      <div class="border-l-2 border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-600">
-        No matches${q ? ` for <span class="font-semibold">"${escapeHtml(q)}"</span>` : ""}.
-      </div>`;
-    return;
-  }
+        // Config derivada (en vez de 2 awaits extra)
+        this.domains = cfg.domains;
+        this.defaultAliasDomain = cfg.defaultAliasDomain;
+        this.baseMailboxDomain = cfg.domain;
 
-  for (const a of visible) {
-    const row = document.createElement("div");
-    row.className =
-      "group flex items-start justify-between gap-3 border-l-2 border-transparent px-3 py-3 hover:border-lime-500 hover:bg-slate-50/60";
+        // Cache
+        this.aliases = await storage.getCachedAliases();;
 
-    const left = document.createElement("div");
-    left.className = "min-w-0";
+        this.setStatus(
+          this.aliases.length
+            ? `Cache · ${this.visible.length}/${this.totalCount} aliases`
+            : "Empty cache · press ↻",
+        );
 
-    const addr = document.createElement("div");
-    addr.className = "truncate text-sm font-semibold text-slate-900";
-    addr.textContent = a.address;
+        // Estos dos NO deberían bloquear el primer paint:
+        //  void this.loadDomains();
+        //  void this.loadBaseMailboxDomain();
 
-    const dest = document.createElement("div");
-    dest.className = "mt-1 truncate text-xs text-slate-500";
-    dest.textContent = (a.destinations ?? []).join(", ");
+      } catch (e) {
+        this.setStatus(e instanceof Error ? e.message : String(e));
+      }
+    },
 
-    left.append(addr, dest);
+    get pendingDeleteLabel() {
+      const a = this.pendingDelete;
+      if (!a) return "";
+      return a.address || a.local_part || "";
+    },
 
-    const actions = document.createElement("div");
-    actions.className = "mt-0.5 flex shrink-0 items-center gap-2";
+    get cacheStatus() {
+      if (!this.totalCount) return "Empty cache · press ↻";
+      return `Cache · ${this.visible.length}/${this.totalCount} aliases`;
+    },
 
-    const copyBtn = document.createElement("button");
-    copyBtn.type = "button";
-    copyBtn.className =
-      "text-xs font-semibold text-slate-700 opacity-80 hover:opacity-100 group-hover:underline";
-    copyBtn.textContent = "Copy";
-    copyBtn.addEventListener("click", () => void copyAlias(a, copyBtn));
+    destinationsText(a: MigaduAlias) {
+      const d = a && Array.isArray(a.destinations) ? a.destinations : [];
+      return d.join(", ");
+    },
 
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className =
-      "mt-0.5 shrink-0 text-xs font-semibold text-rose-600 opacity-80 hover:opacity-100 group-hover:underline";
-    del.textContent = "Delete";
+    async loadBaseMailboxDomain() {
+      const { migadu }: MigaduStorage = await browser.storage.local.get("migadu");
+      const aliasDomains = Array.isArray(migadu?.domains)
+        ? migadu.domains.map(d => String(d).trim()).filter(Boolean)
+        : [];
+      const domain = (migadu?.domain?.trim() ?? (aliasDomains[0] ?? "")).trim();
+      this.baseMailboxDomain = domain;
+    },
 
-    del.addEventListener("click", async (event) => {
-      event.stopPropagation();
+    toggleDomainMenu() {
+      if (!this.enabled) return;
+      this.domainMenuOpen = !this.domainMenuOpen;
+    },
 
-      confirmDeleteAliasEl.textContent = a.address ?? a.local_part;
-      confirmDeleteBtn.dataset.localPart = a.local_part;
-      confirmDeleteDialog.showModal();
-    });
+    async refresh() {
+      if (this.isRefreshing) return;
+      this.isRefreshing = true;
+      try {
+        const configured = await storage.hasCompleteConfig();
+        this.enabled = configured;
+        if (!configured) return;
 
-    actions.append(copyBtn, del);
-    row.append(left, actions);
-    row.addEventListener("click", (event) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("button")) return;
+        const aliases = await listAliases();
+        await storage.setAliasCache(aliases);
+        this.aliases = normalizeAliasList(aliases)
+      } finally {
+        this.isRefreshing = false;
+      }
+    },
 
-      void copyAlias(a);
-    });
-    listEl.appendChild(row);
-  }
-}
+    getConfirmDialog(): HTMLDialogElement | null {
+      const el = (this.$refs.confirmDeleteDialog as unknown) as HTMLDialogElement | undefined;
+      return el instanceof HTMLDialogElement ? el : null;
+    },
 
-async function readCache(): Promise<MigaduAlias[]> {
-  const { aliasCache } = (await browser.storage.local.get("aliasCache")) as MigaduStorage;
-  return aliasCache?.aliases ?? [];
-}
 
-async function writeCache(aliases: MigaduAlias[]): Promise<void> {
-  await browser.storage.local.set({ aliasCache: { at: Date.now(), aliases } });
-}
+    setControlAvailability(enabled: boolean) {
+      this.enabled = !!enabled;
+    },
 
-async function load(): Promise<void> {
-  const configured = await hasCompleteConfig();
-  setControlAvailability(configured);
-  if (!configured) {
-    renderMissingConfig();
-    return;
-  }
+    openDelete(alias: MigaduAlias) {
+      this.pendingDelete = alias;
+      this.getConfirmDialog()?.showModal();
+    },
 
-  const aliases = await readCache();
-  allAliases = aliases;
+    async confirmDelete() {
+      const a = this.pendingDelete;
+      const localPart = (a?.local_part ?? "").trim();
 
-  const filtered = filterAliases(searchEl.value, allAliases);
-  render(filtered, allAliases.length);
+      if (!localPart) {
+        this.getConfirmDialog()?.close();
+        return;
+      }
 
-  setStatus(
-    aliases.length
-      ? `Cache · ${filtered.length}/${aliases.length} aliases`
-      : "Empty cache · press ↻",
-  );
-}
+      if (this.deleting) return;
 
-async function refresh(): Promise<void> {
-  try {
-    const configured = await hasCompleteConfig();
-    setControlAvailability(configured);
-    if (!configured) {
-      renderMissingConfig();
-      return;
-    }
+      try {
+        this.deleting = true;
+        this.setStatus(`Deleting ${localPart}…`);
 
-    setStatus("Updating...");
+        await deleteAlias(localPart);
 
-    const aliases = await listAliases();
+        // 1) persistencia canónica + count
+        const cache = await storage.removeCachedAliasByLocalPart(localPart);
 
-    await writeCache(aliases);
-    allAliases = aliases;
-    render(filterAliases(searchEl.value, allAliases), allAliases.length);
-    setStatus(`OK · ${aliases.length} aliases`);
-  } catch (e) {
-    setStatus(e instanceof Error ? e.message : String(e));
-  }
-}
+        // 2) estado UI desde cache plano
+        this.aliases = cache.aliases;
 
-refreshBtn.addEventListener("click", () => void refresh());
+        // 3) status + cerrar dialog
+        this.setStatus(`Deleted · ${this.visible.length}/${cache.count} aliases`);
+        this.getConfirmDialog()?.close();
+      } catch (e) {
+        this.setStatus(e instanceof Error ? e.message : String(e));
+      } finally {
+        this.deleting = false;
+        this.pendingDelete = null;
+      }
+    },
 
-domainSelectorBtn.addEventListener("click", () => {
-  if (domainSelectorBtn.disabled) return;
-  domainMenuEl.classList.toggle("hidden");
+
+    get totalCount() {
+      return this.aliases.length;
+    },
+
+    get visible() {
+      const q = this.search.trim().toLowerCase();
+      if (!q) return this.aliases;
+
+      return this.aliases.filter(a => {
+        const hay = [
+          a.address,
+          a.local_part,
+          ...(a.destinations ?? []),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return hay.includes(q);
+      });
+    },
+
+    get refreshTitle() {
+      return this.enabled ? "Refresh" : this.missingConfigMessage;
+    },
+    get addTitle() {
+      return this.enabled ? "New alias" : this.missingConfigMessage;
+    },
+    get searchPlaceholder() {
+      return this.enabled ? "Search..." : "Configure Migadu to search aliases";
+    },
+    setStatus(msg: string) {
+      this.status = msg;
+    },
+
+    get domainLabel() {
+      if (this.domains.length === 0) return "No alias domains";
+      if (this.defaultAliasDomain) return this.defaultAliasDomain;
+      return this.baseMailboxDomain ? `Base (${this.baseMailboxDomain})` : "None";
+    },
+
+    renderMissingConfig() {
+      this.setControlAvailability(false);
+      this.missingConfig = true;
+      this.setStatus("Missing configuration.");
+    },
+
+    async copyAlias(alias: MigaduAlias) {
+      const toCopy = this.buildAliasToCopy(alias);
+
+      // Bloqueo UI para ESTE alias
+      this.copyingAddress = alias.address;
+
+      try {
+        if (!navigator.clipboard?.writeText) {
+          throw new Error("Clipboard API unavailable or permission denied.");
+        }
+
+        await navigator.clipboard.writeText(toCopy);
+        this.setStatus(`Copied ${toCopy}`);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        this.setStatus(`Copy failed: ${message}`);
+      } finally {
+        // libera
+        if (this.copyingAddress === alias.address) this.copyingAddress = null;
+      }
+    },
+
+    async loadDomains() {
+      const { migadu = {} }: MigaduStorage = await browser.storage.local.get("migadu");
+
+      const legacyDomain = (migadu.domain ?? "").trim() || null;
+      const storedDomains = Array.isArray(migadu.domains)
+        ? migadu.domains.map(d => String(d).trim()).filter(Boolean)
+        : [];
+
+      const normalized = storedDomains.length > 0
+        ? storedDomains
+        : legacyDomain
+          ? [legacyDomain]
+          : [];
+
+      // unique
+      this.domains = Array.from(new Set(normalized.filter(Boolean)));
+
+      this.defaultAliasDomain =
+        migadu.defaultAliasDomain && this.domains.includes(migadu.defaultAliasDomain)
+          ? migadu.defaultAliasDomain
+          : null;
+    },
+
+    async setDefaultAliasDomain(domain: string | null) {
+      // 1) persistir (valida contra domains existentes y guarda null si no cuadra)
+      await storage.setDefaultAliasDomain(domain);
+
+      // 2) refrescar estado local desde storage resuelto
+      const cfg = await storage.getResolvedConfig();
+      this.domains = cfg?.domains ?? [];
+      this.defaultAliasDomain = cfg?.defaultAliasDomain ?? null;
+
+      // 3) UI
+      this.domainMenuOpen = false;
+    },
+
+    buildAliasToCopy(alias: MigaduAlias) {
+      const lp = (alias.local_part ?? "").trim();
+      if (!lp) return (alias.address ?? "").trim(); // fallback razonable
+
+      const chosen = (this.defaultAliasDomain ?? "").trim();
+      const base = (this.baseMailboxDomain ?? "").trim();
+
+      const domainToUse = chosen || base; // 👈 None => base mailbox domain
+      return domainToUse ? `${lp}@${domainToUse}` : (alias.address ?? "").trim();
+    },
+
+    toggleCreate() {
+      if (!this.enabled) return;
+      this.createOpen = !this.createOpen;
+    },
+
+    closeCreate() {
+      this.createOpen = false;
+    },
+
+    resetCreateForm() {
+      this.createLocalPart = "";
+      this.createDestinationsCsv = "";
+      this.createIsInternal = false;
+    },
+
+    setCreateLocalPart(v: string) { this.createLocalPart = String(v ?? "").trimStart(); },
+    setCreateDestinationsCsv(v: string) { this.createDestinationsCsv = String(v ?? ""); },
+    setCreateIsInternal(v: string) { this.createIsInternal = !!v; },
+
+    normalizeCreatedAlias(created: MigaduAlias) {
+      const normalized = {
+        ...created,
+        is_internal:
+          typeof created?.is_internal === "string"
+            ? created.is_internal === "true"
+            : created?.is_internal,
+        destinations: Array.isArray(created?.destinations) ? created.destinations : [],
+      };
+      return normalized;
+    },
+
+    async createAliasFromForm() {
+      if (this.creating) return;
+
+      try {
+        this.creating = true;
+        this.setStatus("Creating...");
+
+        const localPart = this.createLocalPart.trim();
+        const destinationsCsv = this.createDestinationsCsv.trim();
+        const isInternal = !!this.createIsInternal;
+
+        if (!localPart) throw new Error("Empty local part.");
+        if (!destinationsCsv) throw new Error("Empty destinations.");
+
+        const created = await createAlias({ localPart, destinationsCsv, isInternal });
+
+        // 1) persistencia canónica (normaliza + dedupe + count)
+        const cache = await storage.upsertCachedAlias(created);
+
+        // 2) actualiza estado UI desde el cache plano
+        this.aliases = cache.aliases;
+
+        // 3) copia (usando el alias ya normalizado)
+        await this.copyAlias(cache.aliases[0]);
+
+        // 4) limpia UI
+        this.resetCreateForm();
+        this.createOpen = false;
+
+        // 5) status
+        this.setStatus(
+          `Created · ${this.visible.length}/${cache.count} aliases (copied to clipboard). Migadu changes may take a few minutes to propagate.`,
+        );
+      } catch (e) {
+        this.setStatus(e instanceof Error ? e.message : String(e));
+      } finally {
+        this.creating = false;
+      }
+    },
+
+  }));
+
+  createIcons({ icons: { AtSign, RefreshCw, CirclePlus } });
 });
 
-document.addEventListener("click", (event) => {
-  const target = event.target as Node;
-  if (!domainMenuEl.contains(target) && !domainSelectorBtn.contains(target)) {
-    closeDomainMenu();
-  }
-});
-
-addBtn.addEventListener("click", () => {
-  createBox.classList.toggle("hidden");
-});
-
-cancelBtn.addEventListener("click", () => {
-  createBox.classList.add("hidden");
-});
-
-confirmDeleteBtn.addEventListener("click", async () => {
-  const localPart = confirmDeleteBtn.dataset.localPart;
-  if (!localPart) {
-    confirmDeleteDialog.close();
-    return;
-  }
-
-  try {
-    confirmDeleteBtn.disabled = true;
-    cancelDeleteBtn.disabled = true;
-    setStatus(`Deleting ${localPart}…`);
-
-    await deleteAlias(localPart);
-
-    allAliases = allAliases.filter((x) => x.local_part !== localPart);
-    await browser.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
-
-    const filtered = filterAliases(searchEl.value, allAliases);
-    render(filtered, allAliases.length);
-    setStatus(`Deleted · ${filtered.length}/${allAliases.length} aliases`);
-    confirmDeleteDialog.close();
-  } catch (e) {
-    setStatus(e instanceof Error ? e.message : String(e));
-  } finally {
-    confirmDeleteBtn.disabled = false;
-    cancelDeleteBtn.disabled = false;
-    delete confirmDeleteBtn.dataset.localPart;
-  }
-});
-
-cancelDeleteBtn.addEventListener("click", () => {
-  confirmDeleteDialog.close();
-});
-
-confirmDeleteDialog.addEventListener("close", () => {
-  delete confirmDeleteBtn.dataset.localPart;
-});
-
-createBtn.addEventListener("click", async (): Promise<void> => {
-  try {
-    createBtn.disabled = true;
-    setStatus("Creating...");
-
-    const localPart = localPartEl.value.trim();
-    const destinationsCsv = destinationsEl.value.trim();
-
-    if (!localPart) throw new Error("Empty local part.");
-    if (!destinationsCsv) throw new Error("Empty destinations.");
-
-    const created = await createAlias({
-      localPart,
-      destinationsCsv,
-      isInternal: isInternalEl.checked,
-    });
-
-    const createdNormalized: MigaduAlias = {
-      ...created,
-      is_internal:
-        typeof (created as any).is_internal === "string"
-          ? (created as any).is_internal === "true"
-          : created.is_internal,
-      destinations: Array.isArray(created.destinations) ? created.destinations : [],
-    };
-
-    void copyAlias(createdNormalized);
-
-    // Limpia UI
-    localPartEl.value = "";
-    destinationsEl.value = "";
-    isInternalEl.checked = false;
-    createBox.classList.add("hidden");
-
-    // Actualiza cache + estado local (sin fetch)
-    allAliases = [createdNormalized, ...allAliases];
-    await browser.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
-
-    // Respeta búsqueda
-    const filtered = filterAliases(searchEl.value, allAliases);
-    render(filtered, allAliases.length);
-    setStatus(
-      `Created · ${filtered.length}/${allAliases.length} aliases (copied to clipboard). Migadu changes may take a few minutes to propagate.`,
-    );
-  } catch (e) {
-    setStatus(e instanceof Error ? e.message : String(e));
-  } finally {
-    createBtn.disabled = false;
-  }
-});
-
-let t: number | undefined;
-
-searchEl.addEventListener("input", () => {
-  window.clearTimeout(t);
-  t = window.setTimeout(() => {
-    const filtered = filterAliases(searchEl.value, allAliases);
-    render(filtered, allAliases.length);
-
-    setStatus(
-      allAliases.length
-        ? `Cache · ${filtered.length}/${allAliases.length} aliases`
-        : "Empty cache · press ↻",
-    );
-  }, 80);
-});
-
-void loadDomains();
-void load();
+Alpine.start();
