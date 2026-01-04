@@ -9,8 +9,8 @@ import { normalizeAliasList, storage } from "./storage";
 document.addEventListener("alpine:init", () => {
   Alpine.data("aliasesUi", () => ({
     enabled: false,
-    status: "",
     search: "",
+    statusOverride: null as string | null,
     isRefreshing: false,
     copyingAddress: "" as string | null,
     missingConfig: false,
@@ -36,8 +36,11 @@ document.addEventListener("alpine:init", () => {
     createDestinationsCsv: "",
     createIsInternal: false,
 
+    timer: null as number | null,
+
     async init() {
-      this.setStatus("Loading...");
+      this
+      this.statusOverride = "Loading...";
 
       queueMicrotask(() => void this.boot());
     },
@@ -61,32 +64,32 @@ document.addEventListener("alpine:init", () => {
         this.baseMailboxDomain = cfg.domain;
 
         // Cache
-        this.aliases = await storage.getCachedAliases();;
+        this.aliases = await storage.getCachedAliases();
 
-        this.setStatus(
-          this.aliases.length
-            ? `Cache · ${this.visible.length}/${this.totalCount} aliases`
-            : "Empty cache · press ↻",
-        );
+        if (!this.aliases.length) {
+          this.statusOverride = "Empty cache · press ↻";
+        } else {
+          this.statusOverride = null;
+        }
 
         // Estos dos NO deberían bloquear el primer paint:
         //  void this.loadDomains();
         //  void this.loadBaseMailboxDomain();
 
       } catch (e) {
-        this.setStatus(e instanceof Error ? e.message : String(e));
+        this.statusOverride = e instanceof Error ? e.message : String(e);
       }
+    },
+
+    get statusText() {
+      if (this.statusOverride) return this.statusOverride;
+      return `Cache · ${this.visible.length}/${this.totalCount} aliases`;
     },
 
     get pendingDeleteLabel() {
       const a = this.pendingDelete;
       if (!a) return "";
       return a.address || a.local_part || "";
-    },
-
-    get cacheStatus() {
-      if (!this.totalCount) return "Empty cache · press ↻";
-      return `Cache · ${this.visible.length}/${this.totalCount} aliases`;
     },
 
     destinationsText(a: MigaduAlias) {
@@ -129,7 +132,6 @@ document.addEventListener("alpine:init", () => {
       return el instanceof HTMLDialogElement ? el : null;
     },
 
-
     setControlAvailability(enabled: boolean) {
       this.enabled = !!enabled;
     },
@@ -152,9 +154,10 @@ document.addEventListener("alpine:init", () => {
 
       try {
         this.deleting = true;
-        this.setStatus(`Deleting ${localPart}…`);
+        this.statusOverride = `Deleting ${localPart}...`;
 
         await deleteAlias(localPart);
+        this.statusOverride = null;
 
         // 1) persistencia canónica + count
         const cache = await storage.removeCachedAliasByLocalPart(localPart);
@@ -163,16 +166,15 @@ document.addEventListener("alpine:init", () => {
         this.aliases = cache.aliases;
 
         // 3) status + cerrar dialog
-        this.setStatus(`Deleted · ${this.visible.length}/${cache.count} aliases`);
+        this.setTempStatus(`Deleted OK`);
         this.getConfirmDialog()?.close();
       } catch (e) {
-        this.setStatus(e instanceof Error ? e.message : String(e));
+        this.statusOverride = e instanceof Error ? e.message : String(e);
       } finally {
         this.deleting = false;
         this.pendingDelete = null;
       }
     },
-
 
     get totalCount() {
       return this.aliases.length;
@@ -185,8 +187,7 @@ document.addEventListener("alpine:init", () => {
       return this.aliases.filter(a => {
         const hay = [
           a.address,
-          a.local_part,
-          ...(a.destinations ?? []),
+          a.local_part
         ]
           .filter(Boolean)
           .join(" ")
@@ -199,14 +200,13 @@ document.addEventListener("alpine:init", () => {
     get refreshTitle() {
       return this.enabled ? "Refresh" : this.missingConfigMessage;
     },
+
     get addTitle() {
       return this.enabled ? "New alias" : this.missingConfigMessage;
     },
+
     get searchPlaceholder() {
       return this.enabled ? "Search..." : "Configure Migadu to search aliases";
-    },
-    setStatus(msg: string) {
-      this.status = msg;
     },
 
     get domainLabel() {
@@ -218,7 +218,17 @@ document.addEventListener("alpine:init", () => {
     renderMissingConfig() {
       this.setControlAvailability(false);
       this.missingConfig = true;
-      this.setStatus("Missing configuration.");
+      this.statusOverride = "Missing configuration.";
+    },
+
+    setTempStatus(msg: string, ms = 2000) {
+      this.statusOverride = msg;
+
+      if (this.timer) window.clearTimeout(this.timer);
+      this.timer = window.setTimeout(() => {
+        this.statusOverride = null;
+        this.timer = null;
+      }, ms);
     },
 
     async copyAlias(alias: MigaduAlias) {
@@ -233,10 +243,11 @@ document.addEventListener("alpine:init", () => {
         }
 
         await navigator.clipboard.writeText(toCopy);
-        this.setStatus(`Copied ${toCopy}`);
+        this.setTempStatus(`Copied ${toCopy}`);
+
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
-        this.setStatus(`Copy failed: ${message}`);
+        this.statusOverride = `Copy failed: ${message}`;
       } finally {
         // libera
         if (this.copyingAddress === alias.address) this.copyingAddress = null;
@@ -326,7 +337,7 @@ document.addEventListener("alpine:init", () => {
 
       try {
         this.creating = true;
-        this.setStatus("Creating...");
+        this.statusOverride = "Creating...";
 
         const localPart = this.createLocalPart.trim();
         const destinationsCsv = this.createDestinationsCsv.trim();
@@ -339,6 +350,7 @@ document.addEventListener("alpine:init", () => {
 
         // 1) persistencia canónica (normaliza + dedupe + count)
         const cache = await storage.upsertCachedAlias(created);
+        this.statusOverride = null;
 
         // 2) actualiza estado UI desde el cache plano
         this.aliases = cache.aliases;
@@ -351,11 +363,11 @@ document.addEventListener("alpine:init", () => {
         this.createOpen = false;
 
         // 5) status
-        this.setStatus(
+        this.setTempStatus(
           `Created · ${this.visible.length}/${cache.count} aliases (copied to clipboard). Migadu changes may take a few minutes to propagate.`,
         );
       } catch (e) {
-        this.setStatus(e instanceof Error ? e.message : String(e));
+        this.statusOverride = (e instanceof Error ? e.message : String(e));
       } finally {
         this.creating = false;
       }
