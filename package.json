@@ -2,11 +2,12 @@
   "name": "aliasdu",
   "version": "1.0.0",
   "description": "",
+  "packageManager": "pnpm@10.33.4",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "clean": "rimraf dist extension.zip",
-    "package": "npm run build && node scripts/package.mjs",
+    "package": "pnpm run build && node scripts/package.mjs",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -30,7 +31,6 @@
     "vite": "^7.2.7"
   },
   "dependencies": {
-    "alpinejs": "^3.15.3",
     "lucide": "^0.561.0",
     "webextension-polyfill": "file:vendor/webextension-polyfill"
   }

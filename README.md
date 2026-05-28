@@ -34,8 +34,8 @@ It focuses on a clean, minimal UI (Migadu-inspired), local caching, and zero bac
 ```bash
 git clone https://github.com/pvizc/aliasdu.git
 cd aliasdu
-npm install
-npm run build
+pnpm install
+pnpm build
 ```
 
 Then in Chrome:
