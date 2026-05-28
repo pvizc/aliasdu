@@ -46,6 +46,8 @@ export async function listAliases(): Promise<MigaduAlias[]> {
     headers: { Authorization: basicAuthHeader(user, token) },
   });
 
+  await assertOk(res, "List aliases failed");
+
   const data = (await res.json()) as { address_aliases?: MigaduAliasRaw[] };
   return (data.address_aliases ?? []).map(normalizeAlias);
 }

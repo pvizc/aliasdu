@@ -22,5 +22,6 @@ node_modules/
 # Build outputs
 dist/
 build/
+extension.zip
 .vite/
 .cache/

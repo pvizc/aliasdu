@@ -96,7 +96,7 @@ function buildAliasToCopy(alias: MigaduAlias): string {
   throw new Error("No alias data available to copy.");
 }
 
-async function copyAlias(alias: MigaduAlias, trigger?: HTMLButtonElement): Promise<void> {
+async function copyAlias(alias: MigaduAlias, trigger?: HTMLButtonElement): Promise<string | null> {
   try {
     if (!navigator.clipboard?.writeText) {
       throw new Error("Clipboard API unavailable or permission denied.");
@@ -107,9 +107,11 @@ async function copyAlias(alias: MigaduAlias, trigger?: HTMLButtonElement): Promi
 
     await navigator.clipboard.writeText(toCopy);
     setStatus(`Copied ${toCopy}`);
+    return toCopy;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     setStatus(`Copy failed: ${message}`);
+    return null;
   } finally {
     trigger && (trigger.disabled = false);
   }
@@ -428,7 +430,6 @@ confirmDeleteBtn.addEventListener("click", async () => {
   } finally {
     confirmDeleteBtn.disabled = false;
     cancelDeleteBtn.disabled = false;
-    delete confirmDeleteBtn.dataset.localPart;
   }
 });
 
@@ -457,16 +458,7 @@ createBtn.addEventListener("click", async (): Promise<void> => {
       isInternal: isInternalEl.checked,
     });
 
-    const createdNormalized: MigaduAlias = {
-      ...created,
-      is_internal:
-        typeof (created as any).is_internal === "string"
-          ? (created as any).is_internal === "true"
-          : created.is_internal,
-      destinations: Array.isArray(created.destinations) ? created.destinations : [],
-    };
-
-    void copyAlias(createdNormalized);
+    const copiedAlias = await copyAlias(created);
 
     // Limpia UI
     localPartEl.value = "";
@@ -475,14 +467,15 @@ createBtn.addEventListener("click", async (): Promise<void> => {
     createBox.classList.add("hidden");
 
     // Actualiza cache + estado local (sin fetch)
-    allAliases = [createdNormalized, ...allAliases];
+    allAliases = [created, ...allAliases];
     await browser.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
 
     // Respeta búsqueda
     const filtered = filterAliases(searchEl.value, allAliases);
     render(filtered, allAliases.length);
+    const copyStatus = copiedAlias ? `Copied ${copiedAlias}. ` : "Copy to clipboard failed. ";
     setStatus(
-      `Created · ${filtered.length}/${allAliases.length} aliases (copied to clipboard). Migadu changes may take a few minutes to propagate.`,
+      `Created · ${filtered.length}/${allAliases.length} aliases. ${copyStatus}Migadu changes may take a few minutes to propagate.`,
     );
   } catch (e) {
     setStatus(e instanceof Error ? e.message : String(e));
