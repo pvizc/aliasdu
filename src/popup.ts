@@ -15,9 +15,16 @@ let allAliases: MigaduAlias[] = [];
 let activeConfig: MigaduConfig | null = null;
 let busy = true;
 let initializationFailed = false;
+const pageSize = 5;
+let currentPage = 0;
+let filteredCount = 0;
 
 const statusEl = $<HTMLElement>("status");
 const listEl = $<HTMLElement>("list");
+const paginationEl = $<HTMLElement>("pagination");
+const pageInfoEl = $<HTMLElement>("pageInfo");
+const previousPageBtn = $<HTMLButtonElement>("previousPage");
+const nextPageBtn = $<HTMLButtonElement>("nextPage");
 
 const createBox = $<HTMLElement>("create");
 const addBtn = $<HTMLButtonElement>("add");
@@ -65,6 +72,8 @@ function setControlAvailability(enabled: boolean): void {
   isInternalEl.disabled = !canAct;
   domainSelectorBtn.disabled = !canAct || availableDomains.length === 0;
   for (const button of listEl.querySelectorAll("button")) button.disabled = !canAct;
+  previousPageBtn.disabled = !canAct || currentPage === 0;
+  nextPageBtn.disabled = !canAct || (currentPage + 1) * pageSize >= filteredCount;
 
   refreshBtn.title = enabled ? "Refresh" : missingConfigMessage;
   addBtn.title = enabled ? "New alias" : missingConfigMessage;
@@ -78,6 +87,9 @@ function setControlAvailability(enabled: boolean): void {
 function renderMissingConfig(): void {
   activeConfig = null;
   allAliases = [];
+  currentPage = 0;
+  filteredCount = 0;
+  paginationEl.classList.add("hidden");
   setControlAvailability(false);
   listEl.innerHTML = `
       <div class="border-l-2 border-amber-500 bg-amber-50 p-3 text-sm text-amber-800">
@@ -242,6 +254,13 @@ async function setDefaultAliasDomain(domain: string | null): Promise<void> {
 
 function render(visible: MigaduAlias[], totalCount: number): void {
   listEl.innerHTML = "";
+  filteredCount = visible.length;
+  const pageCount = Math.ceil(filteredCount / pageSize);
+  currentPage = Math.max(0, Math.min(currentPage, pageCount - 1));
+  const start = currentPage * pageSize;
+  paginationEl.classList.toggle("hidden", pageCount <= 1);
+  pageInfoEl.textContent = `${start + 1}–${Math.min(start + pageSize, filteredCount)} of ${filteredCount} · ${currentPage + 1}/${pageCount}`;
+  setControlAvailability(Boolean(activeConfig));
 
   if (totalCount === 0) {
     listEl.innerHTML = `
@@ -260,7 +279,7 @@ function render(visible: MigaduAlias[], totalCount: number): void {
     return;
   }
 
-  for (const a of visible) {
+  for (const a of visible.slice(start, start + pageSize)) {
     const row = document.createElement("div");
     row.className =
       "group flex items-start justify-between gap-3 border-l-2 border-transparent px-3 py-3 hover:border-lime-500 hover:bg-slate-50/60";
@@ -339,6 +358,7 @@ async function writeCache(config: MigaduConfig, aliases: MigaduAlias[]): Promise
 function resetConfig(config: MigaduConfig): void {
   activeConfig = config;
   allAliases = [];
+  currentPage = 0;
   loadDomains(config);
   createBox.classList.add("hidden");
   confirmDeleteDialog.close();
@@ -460,6 +480,16 @@ async function refresh(): Promise<void> {
 
 refreshBtn.addEventListener("click", () => void refresh());
 
+function changePage(delta: number): void {
+  if (busy || !activeConfig) return;
+  currentPage += delta;
+  render(filterAliases(searchEl.value, allAliases), allAliases.length);
+  window.scrollTo(0, 0);
+}
+
+previousPageBtn.addEventListener("click", () => changePage(-1));
+nextPageBtn.addEventListener("click", () => changePage(1));
+
 domainSelectorBtn.addEventListener("click", () => {
   if (domainSelectorBtn.disabled) return;
   domainMenuEl.classList.toggle("hidden");
@@ -536,6 +566,7 @@ createBtn.addEventListener("click", async (): Promise<void> => {
       created,
       ...allAliases.filter((alias) => alias.local_part !== created.local_part),
     ];
+    currentPage = 0;
     const applied = await commitAliases(config, aliases, `Created ${created.address}.`);
     if (!applied) return;
     const status = statusEl.textContent;
@@ -550,6 +581,7 @@ let t: number | undefined;
 searchEl.addEventListener("input", () => {
   if (busy) return;
   window.clearTimeout(t);
+  currentPage = 0;
   t = window.setTimeout(() => {
     if (busy) return;
     const filtered = filterAliases(searchEl.value, allAliases);

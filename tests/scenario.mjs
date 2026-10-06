@@ -54,6 +54,18 @@ if (scenario === "popup-scoped-cache" || scenario === "popup-other-account-cache
   };
 }
 let failCacheWrites = false;
+if (scenario === "popup-pagination") {
+  store.aliasCache = {
+    user: config.user,
+    domain: config.domain,
+    at: Date.now(),
+    aliases: Array.from({ length: 11 }, (_, index) => ({
+      ...alias,
+      local_part: `alias${index + 1}`,
+      address: `alias${index + 1}@example.com`,
+    })),
+  };
+}
 let failReads = scenario.endsWith("startup-error");
 let deferStorageWrite = false;
 let pendingStorageWrite;
@@ -224,7 +236,47 @@ try {
       () => /^(Cache|Empty cache)/.test($("status").textContent) && !$("refresh").disabled,
     );
     assert.equal(requests.length, 0, "Startup must not fetch Migadu");
-    if (scenario === "popup-empty-domains") {
+    if (scenario === "popup-pagination") {
+      assert.equal($("list").children.length, 5);
+      assert.equal($("pageInfo").textContent, "1–5 of 11 · 1/3");
+      assert.equal($("previousPage").disabled, true);
+      $("nextPage").click();
+      assert.equal($("pageInfo").textContent, "6–10 of 11 · 2/3");
+      $("list").querySelector("button").click();
+      await until(() => copied.length === 1);
+      assert.equal(copied[0], "alias6@alias.example.com");
+      $("previousPage").click();
+      assert.ok($("list").textContent.includes("alias1@example.com"));
+      $("nextPage").click();
+      $("nextPage").click();
+      assert.equal($("list").children.length, 1);
+      assert.equal($("nextPage").disabled, true);
+      await remove("alias11");
+      await until(() => !$("refresh").disabled);
+      assert.equal($("pageInfo").textContent, "6–10 of 10 · 2/2");
+      $("search").value = "alias1@";
+      $("search").dispatchEvent(new window.Event("input"));
+      await until(() => $("list").children.length === 1);
+      assert.ok($("list").textContent.includes("alias1@example.com"));
+      assert.equal($("pagination").classList.contains("hidden"), true);
+      $("search").value = "no-match";
+      $("search").dispatchEvent(new window.Event("input"));
+      await until(() => $("list").textContent.includes("No matches"));
+      assert.equal($("pagination").classList.contains("hidden"), true);
+      $("search").value = "";
+      $("search").dispatchEvent(new window.Event("input"));
+      await until(() => $("list").children.length === 5);
+      assert.equal($("pageInfo").textContent, "1–5 of 10 · 1/2");
+      $("nextPage").click();
+      await create();
+      assert.equal($("pageInfo").textContent, "1–5 of 11 · 1/3");
+      $("nextPage").click();
+      await refresh();
+      assert.equal($("list").children.length, 1);
+      assert.equal($("pagination").classList.contains("hidden"), true);
+      assert.equal($("previousPage").disabled, true);
+      assert.equal($("nextPage").disabled, true);
+    } else if (scenario === "popup-empty-domains") {
       assert.equal($("domainSelectorLabel").textContent, "No alias domains");
       assert.equal($("domainSelector").disabled, true);
     } else if (scenario === "popup-legacy-cache" || scenario === "popup-other-account-cache") {

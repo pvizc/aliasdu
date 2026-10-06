@@ -14,6 +14,7 @@ for (const scenario of [
   "popup-empty-domains",
   "popup-legacy-cache",
   "popup-scoped-cache",
+  "popup-pagination",
   "popup-other-account-cache",
   "popup-selector-override",
   "popup-selector-persistence",
