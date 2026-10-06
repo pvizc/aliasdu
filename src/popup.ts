@@ -1,7 +1,7 @@
 import "./styles.css";
 import browser from "webextension-polyfill";
-import { createAlias, deleteAlias, listAliases } from "./migadu";
-import type { MigaduAlias, MigaduStorage } from "./types";
+import { createAlias, deleteAlias, getConfigOrThrow, listAliases } from "./migadu";
+import type { MigaduAlias, MigaduConfig, MigaduStorage } from "./types";
 import { createIcons, AtSign, RefreshCw, CirclePlus } from "lucide";
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -12,6 +12,9 @@ const $ = <T extends HTMLElement>(id: string): T => {
 
 const searchEl = $<HTMLInputElement>("search");
 let allAliases: MigaduAlias[] = [];
+let activeConfig: MigaduConfig | null = null;
+let busy = true;
+let initializationFailed = false;
 
 const statusEl = $<HTMLElement>("status");
 const listEl = $<HTMLElement>("list");
@@ -49,9 +52,19 @@ const missingConfigMessage =
   "Missing configuration. Open Options and add your user, API token and domain.";
 
 function setControlAvailability(enabled: boolean): void {
-  refreshBtn.disabled = !enabled;
-  addBtn.disabled = !enabled;
-  searchEl.disabled = !enabled;
+  const canAct = enabled && !busy;
+  refreshBtn.disabled = busy || (!enabled && !initializationFailed);
+  addBtn.disabled = !canAct;
+  searchEl.disabled = !canAct;
+  createBtn.disabled = !canAct;
+  confirmDeleteBtn.disabled = !canAct;
+  cancelDeleteBtn.disabled = busy;
+  cancelBtn.disabled = busy;
+  localPartEl.disabled = !canAct;
+  destinationsEl.disabled = !canAct;
+  isInternalEl.disabled = !canAct;
+  domainSelectorBtn.disabled = !canAct || availableDomains.length === 0;
+  for (const button of listEl.querySelectorAll("button")) button.disabled = !canAct;
 
   refreshBtn.title = enabled ? "Refresh" : missingConfigMessage;
   addBtn.title = enabled ? "New alias" : missingConfigMessage;
@@ -62,20 +75,9 @@ function setControlAvailability(enabled: boolean): void {
   }
 }
 
-async function hasCompleteConfig(): Promise<boolean> {
-  const { migadu } = (await browser.storage.local.get("migadu")) as MigaduStorage;
-
-  const user = migadu?.user?.trim();
-  const token = migadu?.token?.trim();
-  const aliasDomains = Array.isArray(migadu?.domains)
-    ? migadu.domains.map((d) => d.trim()).filter(Boolean)
-    : [];
-  const domain = migadu?.domain?.trim() ?? (aliasDomains.length > 0 ? aliasDomains[0] : undefined);
-
-  return Boolean(user && token && domain);
-}
-
 function renderMissingConfig(): void {
+  activeConfig = null;
+  allAliases = [];
   setControlAvailability(false);
   listEl.innerHTML = `
       <div class="border-l-2 border-amber-500 bg-amber-50 p-3 text-sm text-amber-800">
@@ -96,7 +98,11 @@ function buildAliasToCopy(alias: MigaduAlias): string {
   throw new Error("No alias data available to copy.");
 }
 
-async function copyAlias(alias: MigaduAlias, trigger?: HTMLButtonElement): Promise<string | null> {
+async function copyAlias(
+  alias: MigaduAlias,
+  trigger?: HTMLButtonElement,
+  reportStatus = true,
+): Promise<string | null> {
   try {
     if (!navigator.clipboard?.writeText) {
       throw new Error("Clipboard API unavailable or permission denied.");
@@ -106,11 +112,11 @@ async function copyAlias(alias: MigaduAlias, trigger?: HTMLButtonElement): Promi
     const toCopy = buildAliasToCopy(alias);
 
     await navigator.clipboard.writeText(toCopy);
-    setStatus(`Copied ${toCopy}`);
+    if (reportStatus) setStatus(`Copied ${toCopy}`);
     return toCopy;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    setStatus(`Copy failed: ${message}`);
+    if (reportStatus) setStatus(`Copy failed: ${message}`);
     return null;
   } finally {
     trigger && (trigger.disabled = false);
@@ -153,7 +159,7 @@ let defaultAliasDomain: string | null = null;
 function updateDomainSelectorLabel(): void {
   const label = availableDomains.length === 0 ? "No alias domains" : (defaultAliasDomain ?? "None");
   domainSelectorLabelEl.textContent = label;
-  domainSelectorBtn.disabled = availableDomains.length === 0;
+  domainSelectorBtn.disabled = busy || !activeConfig || availableDomains.length === 0;
   domainSelectorBtn.title =
     availableDomains.length === 0
       ? "Configure alias domains in Options"
@@ -198,25 +204,17 @@ function renderDomainMenu(): void {
 
     btn.append(labelEl, indicator);
 
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
       closeDomainMenu();
-      await setDefaultAliasDomain(value);
+      void setDefaultAliasDomain(value);
     });
 
     domainMenuEl.append(btn);
   }
 }
 
-async function loadDomains(): Promise<void> {
-  const { migadu = {} } = (await browser.storage.local.get("migadu")) as MigaduStorage;
-
-  const legacyDomain = migadu.domain?.trim();
-  const storedDomains = Array.isArray(migadu.domains)
-    ? migadu.domains.map((d) => d.trim()).filter(Boolean)
-    : [];
-  const normalized = storedDomains.length > 0 ? storedDomains : legacyDomain ? [legacyDomain] : [];
-  availableDomains = Array.from(new Set(normalized.filter(Boolean) as string[]));
-
+function loadDomains(migadu: MigaduConfig): void {
+  availableDomains = Array.from(new Set(migadu.domains));
   defaultAliasDomain =
     migadu.defaultAliasDomain && availableDomains.includes(migadu.defaultAliasDomain)
       ? migadu.defaultAliasDomain
@@ -227,33 +225,19 @@ async function loadDomains(): Promise<void> {
 }
 
 async function setDefaultAliasDomain(domain: string | null): Promise<void> {
-  const { migadu = {} } = (await browser.storage.local.get("migadu")) as MigaduStorage;
-
-  const legacyDomain = migadu.domain?.trim();
-  const storedDomains = Array.isArray(migadu.domains)
-    ? migadu.domains.map((d) => d.trim()).filter(Boolean)
-    : [];
-  const normalizedDomains = Array.from(
-    new Set(
-      (storedDomains.length > 0 ? storedDomains : legacyDomain ? [legacyDomain] : []).filter(
-        Boolean,
-      ) as string[],
-    ),
-  );
-
-  const normalized = domain && normalizedDomains.includes(domain) ? domain : null;
-  await browser.storage.local.set({
-    migadu: {
-      ...migadu,
-      domains: normalizedDomains,
-      defaultAliasDomain: normalized,
-    },
+  await runOperation(async (config) => {
+    const normalized = domain && config.domains.includes(domain) ? domain : null;
+    const migadu = { ...config, defaultAliasDomain: normalized };
+    // Store the selection separately so it cannot overwrite credentials saved
+    // concurrently in Options. Its scope also prevents reuse for another account.
+    await browser.storage.local.set({
+      aliasDomainSelection: { user: config.user, domain: config.domain, value: normalized },
+    });
+    if (!(await isCurrentConfig(config))) return;
+    activeConfig = migadu;
+    loadDomains(migadu);
+    setStatus("Default alias domain saved.");
   });
-
-  availableDomains = normalizedDomains;
-  defaultAliasDomain = normalized;
-  updateDomainSelectorLabel();
-  renderDomainMenu();
 }
 
 function render(visible: MigaduAlias[], totalCount: number): void {
@@ -302,7 +286,9 @@ function render(visible: MigaduAlias[], totalCount: number): void {
     copyBtn.className =
       "text-xs font-semibold text-slate-700 opacity-80 hover:opacity-100 group-hover:underline";
     copyBtn.textContent = "Copy";
-    copyBtn.addEventListener("click", () => void copyAlias(a, copyBtn));
+    copyBtn.addEventListener("click", () => {
+      if (!busy) void copyAlias(a, copyBtn);
+    });
 
     const del = document.createElement("button");
     del.type = "button";
@@ -310,8 +296,9 @@ function render(visible: MigaduAlias[], totalCount: number): void {
       "mt-0.5 shrink-0 text-xs font-semibold text-rose-600 opacity-80 hover:opacity-100 group-hover:underline";
     del.textContent = "Delete";
 
-    del.addEventListener("click", async (event) => {
+    del.addEventListener("click", (event) => {
       event.stopPropagation();
+      if (busy) return;
 
       confirmDeleteAliasEl.textContent = a.address ?? a.local_part;
       confirmDeleteBtn.dataset.localPart = a.local_part;
@@ -322,64 +309,153 @@ function render(visible: MigaduAlias[], totalCount: number): void {
     row.append(left, actions);
     row.addEventListener("click", (event) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest("button")) return;
+      if (busy || target?.closest("button")) return;
 
       void copyAlias(a);
     });
     listEl.appendChild(row);
   }
+  setControlAvailability(Boolean(activeConfig));
 }
 
-async function readCache(): Promise<MigaduAlias[]> {
+function sameConfig(a: MigaduConfig, b: MigaduConfig): boolean {
+  return a.user === b.user && a.domain === b.domain && a.token === b.token;
+}
+
+async function readCache(config: MigaduConfig): Promise<MigaduAlias[]> {
   const { aliasCache } = (await browser.storage.local.get("aliasCache")) as MigaduStorage;
-  return aliasCache?.aliases ?? [];
+  // Legacy caches have no account identity and cannot safely be reused.
+  return aliasCache?.user === config.user && aliasCache.domain === config.domain
+    ? aliasCache.aliases
+    : [];
 }
 
-async function writeCache(aliases: MigaduAlias[]): Promise<void> {
-  await browser.storage.local.set({ aliasCache: { at: Date.now(), aliases } });
+async function writeCache(config: MigaduConfig, aliases: MigaduAlias[]): Promise<void> {
+  await browser.storage.local.set({
+    aliasCache: { user: config.user, domain: config.domain, at: Date.now(), aliases },
+  });
+}
+
+function resetConfig(config: MigaduConfig): void {
+  activeConfig = config;
+  allAliases = [];
+  loadDomains(config);
+  createBox.classList.add("hidden");
+  confirmDeleteDialog.close();
+  render([], 0);
+}
+
+async function isCurrentConfig(config: MigaduConfig): Promise<boolean> {
+  const current = await getConfigOrThrow();
+  if (sameConfig(current, config)) return true;
+  resetConfig(current);
+  setStatus("Configuration changed. Refresh to fetch aliases for the current account and domain.");
+  return false;
+}
+
+async function commitAliases(
+  config: MigaduConfig,
+  aliases: MigaduAlias[],
+  successMessage: string,
+): Promise<boolean> {
+  // A completed remote operation must never be reported as failed just because
+  // local storage failed, or applied to another account after an Options edit.
+  try {
+    if (!(await isCurrentConfig(config))) {
+      setStatus(`${successMessage} Configuration changed; refresh to view the current domain.`);
+      return false;
+    }
+  } catch (e) {
+    activeConfig = null;
+    allAliases = [];
+    render([], 0);
+    initializationFailed = true;
+    setStatus(
+      `${successMessage} Could not verify configuration: ${errorMessage(e)}. Refresh to retry.`,
+    );
+    return false;
+  }
+  allAliases = aliases;
+  const filtered = filterAliases(searchEl.value, allAliases);
+  render(filtered, allAliases.length);
+  let warning = "";
+  try {
+    await writeCache(config, aliases);
+  } catch (e) {
+    warning = ` Cache could not be saved: ${errorMessage(e)}. Refresh when reopening the popup.`;
+    // Removing stale data can succeed even when a write fails (for example quota).
+    await browser.storage.local.remove("aliasCache").catch(() => {});
+  }
+  setStatus(`${successMessage}${warning}`);
+  return true;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function runOperation(
+  action: (config: MigaduConfig) => Promise<void>,
+  allowConfigChange = false,
+): Promise<void> {
+  if (busy) return;
+  busy = true;
+  setControlAvailability(Boolean(activeConfig));
+  try {
+    const config = await getConfigOrThrow();
+    if (!activeConfig || !sameConfig(activeConfig, config)) {
+      resetConfig(config);
+      if (!allowConfigChange) {
+        setStatus("Configuration changed. Refresh before creating or deleting aliases.");
+        return;
+      }
+    }
+    initializationFailed = false;
+    loadDomains(config);
+    await action(config);
+  } catch (e) {
+    if (errorMessage(e) === missingConfigMessage) renderMissingConfig();
+    else setStatus(errorMessage(e));
+  } finally {
+    busy = false;
+    setControlAvailability(Boolean(activeConfig));
+  }
 }
 
 async function load(): Promise<void> {
-  const configured = await hasCompleteConfig();
-  setControlAvailability(configured);
-  if (!configured) {
-    renderMissingConfig();
-    return;
+  setControlAvailability(false);
+  try {
+    const config = await getConfigOrThrow();
+    const aliases = await readCache(config);
+    if (!(await isCurrentConfig(config))) return;
+    activeConfig = config;
+    loadDomains(config);
+    allAliases = aliases;
+    const filtered = filterAliases(searchEl.value, allAliases);
+    render(filtered, allAliases.length);
+    setStatus(
+      aliases.length
+        ? `Cache · ${filtered.length}/${aliases.length} aliases`
+        : "Empty cache · press ↻",
+    );
+  } catch (e) {
+    if (errorMessage(e) === missingConfigMessage) renderMissingConfig();
+    else {
+      initializationFailed = true;
+      setStatus(`Initialization failed: ${errorMessage(e)}. Refresh to retry.`);
+    }
+  } finally {
+    busy = false;
+    setControlAvailability(Boolean(activeConfig));
   }
-
-  const aliases = await readCache();
-  allAliases = aliases;
-
-  const filtered = filterAliases(searchEl.value, allAliases);
-  render(filtered, allAliases.length);
-
-  setStatus(
-    aliases.length
-      ? `Cache · ${filtered.length}/${aliases.length} aliases`
-      : "Empty cache · press ↻",
-  );
 }
 
 async function refresh(): Promise<void> {
-  try {
-    const configured = await hasCompleteConfig();
-    setControlAvailability(configured);
-    if (!configured) {
-      renderMissingConfig();
-      return;
-    }
-
+  await runOperation(async (config) => {
     setStatus("Updating...");
-
-    const aliases = await listAliases();
-
-    await writeCache(aliases);
-    allAliases = aliases;
-    render(filterAliases(searchEl.value, allAliases), allAliases.length);
-    setStatus(`OK · ${aliases.length} aliases`);
-  } catch (e) {
-    setStatus(e instanceof Error ? e.message : String(e));
-  }
+    const aliases = await listAliases(config);
+    await commitAliases(config, aliases, `OK · ${aliases.length} aliases.`);
+  }, true);
 }
 
 refreshBtn.addEventListener("click", () => void refresh());
@@ -397,40 +473,30 @@ document.addEventListener("click", (event) => {
 });
 
 addBtn.addEventListener("click", () => {
+  if (busy || !activeConfig) return;
   createBox.classList.toggle("hidden");
 });
 
 cancelBtn.addEventListener("click", () => {
+  if (busy) return;
   createBox.classList.add("hidden");
 });
 
 confirmDeleteBtn.addEventListener("click", async () => {
+  if (busy) return;
   const localPart = confirmDeleteBtn.dataset.localPart;
   if (!localPart) {
     confirmDeleteDialog.close();
     return;
   }
 
-  try {
-    confirmDeleteBtn.disabled = true;
-    cancelDeleteBtn.disabled = true;
+  await runOperation(async (config) => {
     setStatus(`Deleting ${localPart}…`);
-
-    await deleteAlias(localPart);
-
-    allAliases = allAliases.filter((x) => x.local_part !== localPart);
-    await browser.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
-
-    const filtered = filterAliases(searchEl.value, allAliases);
-    render(filtered, allAliases.length);
-    setStatus(`Deleted · ${filtered.length}/${allAliases.length} aliases`);
+    await deleteAlias(localPart, config);
     confirmDeleteDialog.close();
-  } catch (e) {
-    setStatus(e instanceof Error ? e.message : String(e));
-  } finally {
-    confirmDeleteBtn.disabled = false;
-    cancelDeleteBtn.disabled = false;
-  }
+    const aliases = allAliases.filter((x) => x.local_part !== localPart);
+    await commitAliases(config, aliases, `Deleted ${localPart}.`);
+  });
 });
 
 cancelDeleteBtn.addEventListener("click", () => {
@@ -441,9 +507,12 @@ confirmDeleteDialog.addEventListener("close", () => {
   delete confirmDeleteBtn.dataset.localPart;
 });
 
+confirmDeleteDialog.addEventListener("cancel", (event) => {
+  if (busy) event.preventDefault();
+});
+
 createBtn.addEventListener("click", async (): Promise<void> => {
-  try {
-    createBtn.disabled = true;
+  await runOperation(async (config) => {
     setStatus("Creating...");
 
     const localPart = localPartEl.value.trim();
@@ -452,13 +521,10 @@ createBtn.addEventListener("click", async (): Promise<void> => {
     if (!localPart) throw new Error("Empty local part.");
     if (!destinationsCsv) throw new Error("Empty destinations.");
 
-    const created = await createAlias({
-      localPart,
-      destinationsCsv,
-      isInternal: isInternalEl.checked,
-    });
-
-    const copiedAlias = await copyAlias(created);
+    const created = await createAlias(
+      { localPart, destinationsCsv, isInternal: isInternalEl.checked },
+      config,
+    );
 
     // Limpia UI
     localPartEl.value = "";
@@ -466,29 +532,26 @@ createBtn.addEventListener("click", async (): Promise<void> => {
     isInternalEl.checked = false;
     createBox.classList.add("hidden");
 
-    // Actualiza cache + estado local (sin fetch)
-    allAliases = [created, ...allAliases];
-    await browser.storage.local.set({ aliasCache: { at: Date.now(), aliases: allAliases } });
-
-    // Respeta búsqueda
-    const filtered = filterAliases(searchEl.value, allAliases);
-    render(filtered, allAliases.length);
+    const aliases = [
+      created,
+      ...allAliases.filter((alias) => alias.local_part !== created.local_part),
+    ];
+    const applied = await commitAliases(config, aliases, `Created ${created.address}.`);
+    if (!applied) return;
+    const status = statusEl.textContent;
+    const copiedAlias = await copyAlias(created, undefined, false);
     const copyStatus = copiedAlias ? `Copied ${copiedAlias}. ` : "Copy to clipboard failed. ";
-    setStatus(
-      `Created · ${filtered.length}/${allAliases.length} aliases. ${copyStatus}Migadu changes may take a few minutes to propagate.`,
-    );
-  } catch (e) {
-    setStatus(e instanceof Error ? e.message : String(e));
-  } finally {
-    createBtn.disabled = false;
-  }
+    setStatus(`${status} ${copyStatus}Migadu changes may take a few minutes to propagate.`);
+  });
 });
 
 let t: number | undefined;
 
 searchEl.addEventListener("input", () => {
+  if (busy) return;
   window.clearTimeout(t);
   t = window.setTimeout(() => {
+    if (busy) return;
     const filtered = filterAliases(searchEl.value, allAliases);
     render(filtered, allAliases.length);
 
@@ -500,5 +563,4 @@ searchEl.addEventListener("input", () => {
   }, 80);
 });
 
-void loadDomains();
 void load();

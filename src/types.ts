@@ -9,6 +9,11 @@ export type MigaduConfig = {
 export type MigaduStorage = {
   migadu?: Partial<MigaduConfig>;
   aliasCache?: AliasCache;
+  aliasDomainSelection?: {
+    user: string;
+    domain: string;
+    value: string | null;
+  } | null;
 };
 
 export type MigaduAlias = {
@@ -19,6 +24,8 @@ export type MigaduAlias = {
 };
 
 export type AliasCache = {
+  user: string;
+  domain: string;
   at: number;
   aliases: MigaduAlias[];
 };

@@ -14,8 +14,10 @@ export async function getConfigOrThrow(): Promise<MigaduConfig> {
   const token = migadu?.token?.trim();
   const aliasDomains = Array.isArray(migadu?.domains)
     ? migadu.domains.map((d) => d.trim()).filter(Boolean)
-    : [];
-  const defaultAliasDomain =
+    : migadu?.domains === undefined && migadu?.domain?.trim()
+      ? [migadu.domain.trim()]
+      : [];
+  let defaultAliasDomain =
     migadu?.defaultAliasDomain && aliasDomains.includes(migadu.defaultAliasDomain)
       ? migadu.defaultAliasDomain
       : null;
@@ -23,6 +25,17 @@ export async function getConfigOrThrow(): Promise<MigaduConfig> {
 
   if (!user || !token || !domain) {
     throw new Error("Missing configuration. Open Options and add your user, API token and domain.");
+  }
+
+  const { aliasDomainSelection } = (await browser.storage.local.get(
+    "aliasDomainSelection",
+  )) as MigaduStorage;
+  if (
+    aliasDomainSelection?.user === user &&
+    aliasDomainSelection.domain === domain &&
+    (aliasDomainSelection.value === null || aliasDomains.includes(aliasDomainSelection.value))
+  ) {
+    defaultAliasDomain = aliasDomainSelection.value;
   }
 
   return { user, token, domain, domains: aliasDomains, defaultAliasDomain };
@@ -39,8 +52,8 @@ async function assertOk(res: Response, label: string): Promise<void> {
   throw new Error(`${label}: HTTP ${res.status}${body ? ` (${body})` : ""}`);
 }
 
-export async function listAliases(): Promise<MigaduAlias[]> {
-  const { user, token, domain } = await getConfigOrThrow();
+export async function listAliases(config?: MigaduConfig): Promise<MigaduAlias[]> {
+  const { user, token, domain } = config ?? (await getConfigOrThrow());
 
   const res = await fetch(`${API_BASE}/domains/${encodeURIComponent(domain)}/aliases`, {
     headers: { Authorization: basicAuthHeader(user, token) },
@@ -61,8 +74,11 @@ function normalizeAlias(raw: MigaduAliasRaw): MigaduAlias {
   };
 }
 
-export async function createAlias(input: CreateAliasInput): Promise<MigaduAlias> {
-  const { user, token, domain } = await getConfigOrThrow();
+export async function createAlias(
+  input: CreateAliasInput,
+  config?: MigaduConfig,
+): Promise<MigaduAlias> {
+  const { user, token, domain } = config ?? (await getConfigOrThrow());
 
   const res = await fetch(`${API_BASE}/domains/${encodeURIComponent(domain)}/aliases`, {
     method: "POST",
@@ -83,8 +99,8 @@ export async function createAlias(input: CreateAliasInput): Promise<MigaduAlias>
   return normalizeAlias(raw);
 }
 
-export async function deleteAlias(localPart: string): Promise<void> {
-  const { user, token, domain } = await getConfigOrThrow();
+export async function deleteAlias(localPart: string, config?: MigaduConfig): Promise<void> {
+  const { user, token, domain } = config ?? (await getConfigOrThrow());
 
   const res = await fetch(
     `${API_BASE}/domains/${encodeURIComponent(domain)}/aliases/${encodeURIComponent(localPart)}`,
