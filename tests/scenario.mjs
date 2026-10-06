@@ -49,7 +49,7 @@ if (scenario === "popup-scoped-cache" || scenario === "popup-other-account-cache
   store.aliasCache = {
     user: scenario === "popup-scoped-cache" ? config.user : "other@example.com",
     domain: config.domain,
-    at: Date.now(),
+    at: Date.parse("2026-10-01T08:30:00Z"),
     aliases: [alias],
   };
 }
@@ -156,6 +156,8 @@ await import(
 async function refresh() {
   $("refresh").click();
   await until(() => $("list").textContent.includes(alias.address) && !$("refresh").disabled);
+  assert.equal($("cacheStatus").classList.contains("hidden"), false);
+  assert.equal($("cacheDate").dateTime, new Date(store.aliasCache.at).toISOString());
 }
 async function create() {
   $("add").click();
@@ -280,6 +282,7 @@ try {
       assert.equal($("domainSelectorLabel").textContent, "No alias domains");
       assert.equal($("domainSelector").disabled, true);
     } else if (scenario === "popup-legacy-cache" || scenario === "popup-other-account-cache") {
+      assert.equal($("cacheStatus").classList.contains("hidden"), true);
       assert.ok(
         !$("list").textContent.includes(alias.address),
         "Unscoped cache must not expose actionable aliases",
@@ -287,6 +290,14 @@ try {
     } else if (scenario === "popup-scoped-cache") {
       assert.ok($("list").textContent.includes(alias.address));
       assert.equal(requests.length, 0);
+      assert.equal($("cacheStatus").classList.contains("hidden"), false);
+      assert.equal($("cacheDate").dateTime, "2026-10-01T08:30:00.000Z");
+      assert.equal(
+        $("cacheDate").textContent,
+        new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
+          new Date(store.aliasCache.at),
+        ),
+      );
     } else if (scenario === "popup-selector-override") {
       assert.equal($("domainSelectorLabel").textContent, "None");
       await refresh();
@@ -348,6 +359,7 @@ try {
       await until(() => !$("refresh").disabled);
       assert.ok(!$("list").textContent.includes(alias.address));
       assert.equal(store.aliasCache, undefined, "Stale response must not populate cache");
+      assert.equal($("cacheStatus").classList.contains("hidden"), true);
     } else {
       await refresh();
       if (scenario === "popup-flow") {
@@ -382,6 +394,7 @@ try {
         else await remove();
         assert.match($("status").textContent, /cache/i);
         assert.match($("status").textContent, /created|deleted/i);
+        assert.equal($("cacheStatus").classList.contains("hidden"), true);
         assert.equal(
           requests.filter(({ options }) => options.method === "POST" || options.method === "DELETE")
             .length,

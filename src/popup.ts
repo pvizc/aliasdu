@@ -1,7 +1,7 @@
 import "./styles.css";
 import browser from "webextension-polyfill";
 import { createAlias, deleteAlias, getConfigOrThrow, listAliases } from "./migadu";
-import type { MigaduAlias, MigaduConfig, MigaduStorage } from "./types";
+import type { AliasCache, MigaduAlias, MigaduConfig, MigaduStorage } from "./types";
 import { createIcons, AtSign, RefreshCw, CirclePlus } from "lucide";
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -20,6 +20,8 @@ let currentPage = 0;
 let filteredCount = 0;
 
 const statusEl = $<HTMLElement>("status");
+const cacheStatusEl = $<HTMLElement>("cacheStatus");
+const cacheDateEl = $<HTMLTimeElement>("cacheDate");
 const listEl = $<HTMLElement>("list");
 const paginationEl = $<HTMLElement>("pagination");
 const pageInfoEl = $<HTMLElement>("pageInfo");
@@ -55,6 +57,16 @@ function setStatus(msg: string): void {
   statusEl.textContent = msg;
 }
 
+function setCacheDate(timestamp: number | null): void {
+  const date = new Date(timestamp ?? NaN);
+  const valid = typeof timestamp === "number" && Number.isFinite(date.getTime());
+  cacheStatusEl.classList.toggle("hidden", !valid);
+  cacheDateEl.textContent = valid
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date)
+    : "";
+  cacheDateEl.dateTime = valid ? date.toISOString() : "";
+}
+
 const missingConfigMessage =
   "Missing configuration. Open Options and add your user, API token and domain.";
 
@@ -86,6 +98,7 @@ function setControlAvailability(enabled: boolean): void {
 
 function renderMissingConfig(): void {
   activeConfig = null;
+  setCacheDate(null);
   allAliases = [];
   currentPage = 0;
   filteredCount = 0;
@@ -341,22 +354,25 @@ function sameConfig(a: MigaduConfig, b: MigaduConfig): boolean {
   return a.user === b.user && a.domain === b.domain && a.token === b.token;
 }
 
-async function readCache(config: MigaduConfig): Promise<MigaduAlias[]> {
+async function readCache(config: MigaduConfig): Promise<AliasCache | null> {
   const { aliasCache } = (await browser.storage.local.get("aliasCache")) as MigaduStorage;
   // Legacy caches have no account identity and cannot safely be reused.
   return aliasCache?.user === config.user && aliasCache.domain === config.domain
-    ? aliasCache.aliases
-    : [];
+    ? aliasCache
+    : null;
 }
 
-async function writeCache(config: MigaduConfig, aliases: MigaduAlias[]): Promise<void> {
+async function writeCache(config: MigaduConfig, aliases: MigaduAlias[]): Promise<number> {
+  const at = Date.now();
   await browser.storage.local.set({
-    aliasCache: { user: config.user, domain: config.domain, at: Date.now(), aliases },
+    aliasCache: { user: config.user, domain: config.domain, at, aliases },
   });
+  return at;
 }
 
 function resetConfig(config: MigaduConfig): void {
   activeConfig = config;
+  setCacheDate(null);
   allAliases = [];
   currentPage = 0;
   loadDomains(config);
@@ -387,6 +403,7 @@ async function commitAliases(
     }
   } catch (e) {
     activeConfig = null;
+    setCacheDate(null);
     allAliases = [];
     render([], 0);
     initializationFailed = true;
@@ -400,8 +417,9 @@ async function commitAliases(
   render(filtered, allAliases.length);
   let warning = "";
   try {
-    await writeCache(config, aliases);
+    setCacheDate(await writeCache(config, aliases));
   } catch (e) {
+    setCacheDate(null);
     warning = ` Cache could not be saved: ${errorMessage(e)}. Refresh when reopening the popup.`;
     // Removing stale data can succeed even when a write fails (for example quota).
     await browser.storage.local.remove("aliasCache").catch(() => {});
@@ -446,9 +464,11 @@ async function load(): Promise<void> {
   setControlAvailability(false);
   try {
     const config = await getConfigOrThrow();
-    const aliases = await readCache(config);
+    const cache = await readCache(config);
+    const aliases = cache?.aliases ?? [];
     if (!(await isCurrentConfig(config))) return;
     activeConfig = config;
+    setCacheDate(cache?.at ?? null);
     loadDomains(config);
     allAliases = aliases;
     const filtered = filterAliases(searchEl.value, allAliases);
