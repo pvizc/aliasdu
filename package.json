@@ -5,7 +5,8 @@
   "packageManager": "pnpm@12.9.1",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "pnpm run typecheck && vite build",
+    "typecheck": "tsc --noEmit",
     "clean": "rimraf dist extension.zip",
     "package": "pnpm run build && node scripts/package.mjs",
     "format": "prettier . --write",
@@ -22,16 +23,16 @@
   "type": "module",
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "^25.9.9",
+    "@types/node": "^24.19.1",
     "chrome-types": "^0.1.452",
     "prettier": "^3.9.9",
     "rimraf": "^6.1.3",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.9.3",
-    "vite": "^7.3.6"
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2"
   },
   "dependencies": {
-    "lucide": "^0.561.0",
+    "lucide": "^1.52.0",
     "webextension-polyfill": "file:vendor/webextension-polyfill"
   }
 }

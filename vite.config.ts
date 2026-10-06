@@ -8,10 +8,10 @@ export default defineConfig({
   build: {
     outDir: "../dist",
     emptyOutDir: true,
-    rollupOptions: {
+    rolldownOptions: {
       input: {
-        popup: resolve(__dirname, "src/popup.html"),
-        options: resolve(__dirname, "src/options.html"),
+        popup: resolve(import.meta.dirname, "src/popup.html"),
+        options: resolve(import.meta.dirname, "src/options.html"),
       },
     },
   },
