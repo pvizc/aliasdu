@@ -1,6 +1,6 @@
 # Privacy Policy for aliasdu
 
-Last updated: October 6, 2026
+Last updated: November 1, 2026
 
 aliasdu is an unofficial browser extension developed by Paulo Vizcaíno to manage Migadu email aliases. It is not affiliated with or endorsed by Migadu.
 
@@ -23,7 +23,7 @@ API operations occur in response to your actions. The extension does not poll Mi
 
 ## Local storage and security
 
-Credentials, settings, preferences, and cached aliases are stored in your browser profile using `chrome.storage.local`. The extension does not use Chrome Sync to synchronize this information and does not send it to the developer or to a developer-operated server.
+Credentials, settings, preferences, and cached aliases are stored in your browser profile using `storage.local`. The extension does not use browser sync features, such as Chrome Sync or Firefox Sync, to synchronize this information and does not send it to the developer or to a developer-operated server.
 
 The extension does not add its own encryption to locally stored data. Its local storage depends on the protections provided by your browser, operating system, and device. Requests to Migadu use HTTPS to encrypt data in transit.
 
@@ -36,6 +36,8 @@ The extension sends authenticated requests to `https://api.migadu.com` using you
 Migadu receives these requests and their normal network metadata, such as your IP address. Migadu's handling and retention of information are governed by its own privacy policy and service terms.
 
 aliasdu does not sell user data or share it for advertising, credit assessment, or lending. Data is transmitted to Migadu only as necessary to provide the extension's alias management features.
+
+Firefox displays this transmission during installation as authentication information and personally identifying information. It is required for the extension to work.
 
 ## Retention and deletion
 
@@ -51,7 +53,7 @@ If you contact the developer or submit a GitHub issue, any information you choos
 
 ## Limited Use
 
-aliasdu's use and transfer of user data adhere to the Chrome Web Store User Data Policy, including its Limited Use requirements. User data is used only for the extension's stated alias management purpose, is not used for personalized advertising, and is not made available to the developer for routine human review.
+For the Chrome version, aliasdu's use and transfer of user data adhere to the Chrome Web Store User Data Policy, including its Limited Use requirements. User data is used only for the extension's stated alias management purpose, is not used for personalized advertising, and is not made available to the developer for routine human review.
 
 ## Changes to this policy
 

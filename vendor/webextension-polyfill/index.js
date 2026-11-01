@@ -36,7 +36,18 @@ if (!browser || !browser.storage?.local?.get) {
     },
   };
 
-  browser = chrome ? { ...chrome, storage } : { storage };
+  const permissionsApi = chrome?.permissions;
+
+  const permissions = {
+    contains: permissionsApi
+      ? promisify(permissionsApi.contains.bind(permissionsApi))
+      : async () => true,
+    request: permissionsApi
+      ? promisify(permissionsApi.request.bind(permissionsApi))
+      : async () => true,
+  };
+
+  browser = chrome ? { ...chrome, storage, permissions } : { storage, permissions };
 }
 
 export default browser;

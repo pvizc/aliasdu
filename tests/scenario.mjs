@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
 import { Window } from "happy-dom";
 
 const scenario = process.argv[2];
@@ -84,8 +83,24 @@ function save(values) {
   }
   for (const listener of changes) listener(events, "local");
 }
+let apiAccess = !scenario.endsWith("no-api-access");
+let grantApiAccess = true;
+const permissionRequests = [];
+const apiOrigins = { origins: ["https://api.migadu.com/*"] };
 globalThis.chrome = {
   runtime,
+  permissions: {
+    contains(permissions, callback) {
+      assert.deepEqual(permissions, apiOrigins);
+      callback(apiAccess);
+    },
+    request(permissions, callback) {
+      assert.deepEqual(permissions, apiOrigins);
+      permissionRequests.push(permissions);
+      apiAccess = grantApiAccess;
+      callback(apiAccess);
+    },
+  },
   storage: {
     onChanged: {
       addListener: (listener) => changes.add(listener),
@@ -120,6 +135,22 @@ globalThis.chrome = {
     },
   },
 };
+if (scenario === "popup-native-browser") {
+  // Firefox exposes promise-based APIs on `browser`, which must be used without the fallback.
+  delete globalThis.chrome;
+  globalThis.browser = {
+    permissions: { contains: async () => apiAccess, request: async () => apiAccess },
+    storage: {
+      local: {
+        get: async (key) => ({ [key]: structuredClone(store[key]) }),
+        set: async (values) => save(values),
+        remove: async (keys) => {
+          for (const key of [keys].flat()) delete store[key];
+        },
+      },
+    },
+  };
+}
 const copied = [];
 Object.defineProperty(globalThis, "navigator", {
   configurable: true,
@@ -149,9 +180,7 @@ globalThis.fetch = async (url, options = {}) => {
   return Response.json({ address_aliases: [alias] });
 };
 const script = html.match(/<script[^>]*src="([^"]+\.js)"/)[1];
-await import(
-  pathToFileURL(new URL(`../dist/${script.replace(/^\//, "")}`, import.meta.url).pathname)
-);
+await import(new URL(`../dist/${script.replace(/^\//, "")}`, import.meta.url));
 
 async function refresh() {
   $("refresh").click();
@@ -195,7 +224,17 @@ try {
     }
   } else if (page === "options") {
     await until(() => $("user").value === config.user && !$("save").disabled);
-    if (scenario === "options-empty-domains") {
+    assert.equal($("apiAccess").classList.contains("hidden"), apiAccess);
+    if (scenario === "options-no-api-access") {
+      grantApiAccess = false;
+      $("allowApiAccess").click();
+      await until(() => $("status").textContent.includes("not allowed"));
+      assert.equal($("apiAccess").classList.contains("hidden"), false);
+      grantApiAccess = true;
+      $("allowApiAccess").click();
+      await until(() => $("apiAccess").classList.contains("hidden"));
+      assert.equal(permissionRequests.length, 2);
+    } else if (scenario === "options-empty-domains") {
       assert.equal($("domains").value, "");
       $("save").click();
       await until(() => $("status").textContent === "Save OK");
@@ -278,6 +317,13 @@ try {
       assert.equal($("pagination").classList.contains("hidden"), true);
       assert.equal($("previousPage").disabled, true);
       assert.equal($("nextPage").disabled, true);
+    } else if (scenario === "popup-no-api-access") {
+      $("refresh").click();
+      await until(() => $("status").textContent.includes("api.migadu.com"));
+      assert.match($("status").textContent, /Open Options/);
+      assert.equal(requests.length, 0, "Revoked access must not attempt a request");
+      assert.equal(permissionRequests.length, 0);
+      assert.equal($("refresh").disabled, false);
     } else if (scenario === "popup-empty-domains") {
       assert.equal($("domainSelectorLabel").textContent, "No alias domains");
       assert.equal($("domainSelector").disabled, true);
@@ -362,7 +408,7 @@ try {
       assert.equal($("cacheStatus").classList.contains("hidden"), true);
     } else {
       await refresh();
-      if (scenario === "popup-flow") {
+      if (scenario === "popup-flow" || scenario === "popup-native-browser") {
         assert.equal(document.querySelectorAll("svg[data-lucide]").length, 3);
         $("list").querySelector("button").click();
         await until(() => copied.length === 1);

@@ -2,6 +2,7 @@ import browser from "webextension-polyfill";
 import { CreateAliasInput, MigaduAlias, MigaduConfig, MigaduStorage } from "./types";
 
 const API_BASE = "https://api.migadu.com/v1";
+const API_ACCESS = { origins: ["https://api.migadu.com/*"] };
 
 type MigaduAliasRaw = Omit<MigaduAlias, "is_internal"> & {
   is_internal?: boolean | "true" | "false";
@@ -41,6 +42,22 @@ export async function getConfigOrThrow(): Promise<MigaduConfig> {
   return { user, token, domain, domains: aliasDomains, defaultAliasDomain };
 }
 
+export function hasApiAccess(): Promise<boolean> {
+  return browser.permissions.contains(API_ACCESS);
+}
+
+// Browsers only accept this during a user gesture, so call it directly from the click handler.
+export function requestApiAccess(): Promise<boolean> {
+  return browser.permissions.request(API_ACCESS);
+}
+
+// Users can revoke host permissions at any time. Without this check, the request would fail with
+// a generic network error.
+async function assertApiAccess(): Promise<void> {
+  if (await hasApiAccess()) return;
+  throw new Error("Access to api.migadu.com is not allowed. Open Options to allow it.");
+}
+
 function basicAuthHeader(user: string, token: string): string {
   // Basic base64("user:token")
   return `Basic ${btoa(`${user}:${token}`)}`;
@@ -54,6 +71,7 @@ async function assertOk(res: Response, label: string): Promise<void> {
 
 export async function listAliases(config?: MigaduConfig): Promise<MigaduAlias[]> {
   const { user, token, domain } = config ?? (await getConfigOrThrow());
+  await assertApiAccess();
 
   const res = await fetch(`${API_BASE}/domains/${encodeURIComponent(domain)}/aliases`, {
     headers: { Authorization: basicAuthHeader(user, token) },
@@ -79,6 +97,7 @@ export async function createAlias(
   config?: MigaduConfig,
 ): Promise<MigaduAlias> {
   const { user, token, domain } = config ?? (await getConfigOrThrow());
+  await assertApiAccess();
 
   const res = await fetch(`${API_BASE}/domains/${encodeURIComponent(domain)}/aliases`, {
     method: "POST",
@@ -101,6 +120,7 @@ export async function createAlias(
 
 export async function deleteAlias(localPart: string, config?: MigaduConfig): Promise<void> {
   const { user, token, domain } = config ?? (await getConfigOrThrow());
+  await assertApiAccess();
 
   const res = await fetch(
     `${API_BASE}/domains/${encodeURIComponent(domain)}/aliases/${encodeURIComponent(localPart)}`,

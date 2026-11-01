@@ -1,6 +1,6 @@
 # aliasdu
 
-**aliasdu** is a lightweight Chrome extension to manage **Migadu email aliases** directly from your browser.
+**aliasdu** is a lightweight Chrome and Firefox extension to manage **Migadu email aliases** directly from your browser.
 
 It focuses on a clean, minimal UI (Migadu-inspired), local caching, and zero background noise: no tracking, no accounts, no unnecessary fetches.
 
@@ -16,13 +16,13 @@ It focuses on a clean, minimal UI (Migadu-inspired), local caching, and zero bac
 - 🗑️ Delete aliases
 - 🔍 Local search (instant, no network calls)
 - ♻️ Manual refresh (no automatic API polling)
-- 💾 Local cache via `chrome.storage.local`
+- 💾 Local cache via `storage.local`
 
 ---
 
 ## How it works
 
-- The extension stores your Migadu API credentials **locally** using `chrome.storage.local`
+- The extension stores your Migadu API credentials **locally** using `storage.local`
 - Aliases are fetched **only when you click Refresh**
 - All filtering and searching happens locally
 - Creating / deleting aliases updates the local cache immediately (no forced refetch)
@@ -52,6 +52,18 @@ Then in Chrome:
 3. Click **Load unpacked**
 4. Select the `dist/` folder
 
+Or in Firefox 140 or later:
+
+```bash
+pnpm firefox
+```
+
+This builds the extension and opens it in a temporary Firefox profile. To load it in your own
+profile instead, open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**, and
+select `dist/manifest.json`. Temporary add-ons are removed when Firefox closes.
+
+If you revoke access to `api.migadu.com`, the options page offers a button to allow it again.
+
 ---
 
 ## Configuration
@@ -70,11 +82,26 @@ the configured API domain. An empty list stays empty.
 ```bash
 pnpm typecheck
 pnpm test
+pnpm lint:firefox
 pnpm package
 ```
 
 The tests build the extension and exercise its popup and options with a simulated DOM,
-Chrome storage and Migadu API. They do not contact Migadu or use real credentials.
+browser storage and Migadu API. They do not contact Migadu or use real credentials.
+
+## Publishing to Firefox Add-ons
+
+Vite bundles and minifies the code, so Mozilla requires the source code along with the package.
+Build both from a clean clone of the commit being released, using Node.js 24 and pnpm 12.9.1:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm package
+git archive --format=zip -o source.zip HEAD
+```
+
+Upload `extension.zip` as the add-on and `source.zip` as its source code. A reviewer can reproduce
+`dist/` from the source with the commands above and `pnpm build`.
 
 ---
 

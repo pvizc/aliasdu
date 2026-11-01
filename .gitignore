@@ -23,5 +23,6 @@ node_modules/
 dist/
 build/
 extension.zip
+source.zip
 .vite/
 .cache/

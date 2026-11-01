@@ -12,8 +12,19 @@ export interface StorageNamespace {
   local: StorageArea;
 }
 
+export interface PermissionSet {
+  origins?: string[];
+  permissions?: string[];
+}
+
+export interface PermissionsNamespace {
+  contains(permissions: PermissionSet): Promise<boolean>;
+  request(permissions: PermissionSet): Promise<boolean>;
+}
+
 export interface Browser {
   storage: StorageNamespace;
+  permissions: PermissionsNamespace;
   [key: string]: unknown;
 }
 

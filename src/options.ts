@@ -1,5 +1,6 @@
 import "./styles.css";
 import browser from "webextension-polyfill";
+import { hasApiAccess, requestApiAccess } from "./migadu";
 import { MigaduConfig, MigaduStorage } from "./types";
 import { createIcons, AtSign, Coffee } from "lucide";
 
@@ -16,6 +17,8 @@ const domainsEl = $<HTMLTextAreaElement>("domains");
 const defaultAliasDomainEl = $<HTMLSelectElement>("defaultAliasDomain");
 const saveEl = $<HTMLButtonElement>("save");
 const statusEl = $<HTMLElement>("status");
+const apiAccessEl = $<HTMLElement>("apiAccess");
+const allowApiAccessEl = $<HTMLButtonElement>("allowApiAccess");
 
 function setFormDisabled(disabled: boolean): void {
   for (const element of [userEl, tokenEl, domainEl, domainsEl, defaultAliasDomainEl, saveEl]) {
@@ -107,6 +110,7 @@ async function initialize(): Promise<void> {
   statusEl.textContent = "Loading settings…";
   try {
     await load();
+    apiAccessEl.classList.toggle("hidden", await hasApiAccess());
     statusEl.textContent = "—";
     setFormDisabled(false);
   } catch (e) {
@@ -116,6 +120,18 @@ async function initialize(): Promise<void> {
 }
 
 void initialize();
+
+allowApiAccessEl.addEventListener("click", async (): Promise<void> => {
+  try {
+    const granted = await requestApiAccess();
+    apiAccessEl.classList.toggle("hidden", granted);
+    statusEl.textContent = granted
+      ? "Access to api.migadu.com allowed."
+      : "Access to api.migadu.com was not allowed.";
+  } catch (e) {
+    statusEl.textContent = e instanceof Error ? e.message : String(e);
+  }
+});
 
 saveEl.addEventListener("click", async (): Promise<void> => {
   if (saveEl.disabled) return;

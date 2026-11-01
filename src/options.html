@@ -23,9 +23,23 @@
 
       <section class="mt-6 border-l-2 border-lime-500 bg-slate-50/50 p-4">
         <p class="text-sm text-slate-600">
-          These settings are stored in <span class="font-medium">chrome.storage.local</span> in your
+          These settings are stored in <span class="font-medium">storage.local</span> in your
           browser.
         </p>
+      </section>
+
+      <section id="apiAccess" class="mt-6 hidden border-l-2 border-amber-500 bg-amber-50 p-4">
+        <p class="text-sm text-amber-800">
+          aliasdu needs access to <span class="font-medium">api.migadu.com</span> to manage your
+          aliases.
+        </p>
+        <button
+          id="allowApiAccess"
+          type="button"
+          class="mt-3 rounded-xl bg-lime-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-lime-600 active:scale-[0.98]"
+        >
+          Allow access
+        </button>
       </section>
 
       <section class="mt-6 space-y-4">
