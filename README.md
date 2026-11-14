@@ -96,20 +96,6 @@ pnpm package
 The tests build the extension and exercise its popup and options with a simulated DOM,
 browser storage and Migadu API. They do not contact Migadu or use real credentials.
 
-## Publishing to Firefox Add-ons
-
-Vite bundles and minifies the code, so Mozilla requires the source code along with the package.
-Build both from a clean clone of the commit being released, using Node.js 24 and pnpm 12.9.1:
-
-```bash
-pnpm install --frozen-lockfile
-pnpm package
-git archive --format=zip -o source.zip HEAD
-```
-
-Upload `extension.zip` as the add-on and `source.zip` as its source code. A reviewer can reproduce
-`dist/` from the source with the commands above and `pnpm build`.
-
 ---
 
 ## Security Notes

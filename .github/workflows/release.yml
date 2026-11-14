@@ -1,0 +1,57 @@
+name: Release
+
+# Push a tag like v1.2.0 to build, test and publish a GitHub release with the extension package.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Uses the pnpm version from "packageManager" in package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Check tag matches the extension version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest=$(node -p "require('./public/manifest.json').version")
+          package=$(node -p "require('./package.json').version")
+          if [ "$tag" != "$manifest" ] || [ "$tag" != "$package" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match manifest.json ($manifest) and package.json ($package)."
+            exit 1
+          fi
+
+      - run: pnpm install --frozen-lockfile
+
+      # Builds the extension and runs the regression tests.
+      - run: pnpm test
+
+      - run: pnpm run package
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          asset="aliasdu-${GITHUB_REF_NAME#v}.zip"
+          cp extension.zip "$asset"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            # A release created by hand keeps its notes; only the package is replaced.
+            gh release upload "$GITHUB_REF_NAME" "$asset" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$asset" \
+              --verify-tag \
+              --title "aliasdu ${GITHUB_REF_NAME#v}" \
+              --generate-notes
+          fi
