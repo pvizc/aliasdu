@@ -1,8 +1,8 @@
 import "./styles.css";
 import browser from "webextension-polyfill";
-import { hasApiAccess, requestApiAccess } from "./migadu";
-import { MigaduConfig, MigaduStorage } from "./types";
-import { createIcons, AtSign, Coffee } from "lucide";
+import { hasApiAccess, listDomains, requestApiAccess } from "./migadu";
+import { MigaduConfig, MigaduDomain, MigaduStorage } from "./types";
+import { createIcons, AtSign, Coffee, RefreshCw } from "lucide";
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -12,7 +12,9 @@ const $ = <T extends HTMLElement>(id: string): T => {
 
 const userEl = $<HTMLInputElement>("user");
 const tokenEl = $<HTMLInputElement>("token");
-const domainEl = $<HTMLInputElement>("domain");
+const domainEl = $<HTMLSelectElement>("domain");
+const fetchDomainsEl = $<HTMLButtonElement>("fetchDomains");
+const domainCacheInfoEl = $<HTMLElement>("domainCacheInfo");
 const domainsEl = $<HTMLTextAreaElement>("domains");
 const defaultAliasDomainEl = $<HTMLSelectElement>("defaultAliasDomain");
 const saveEl = $<HTMLButtonElement>("save");
@@ -20,8 +22,18 @@ const statusEl = $<HTMLElement>("status");
 const apiAccessEl = $<HTMLElement>("apiAccess");
 const allowApiAccessEl = $<HTMLButtonElement>("allowApiAccess");
 
+let fetchedDomains: MigaduDomain[] = [];
+
 function setFormDisabled(disabled: boolean): void {
-  for (const element of [userEl, tokenEl, domainEl, domainsEl, defaultAliasDomainEl, saveEl]) {
+  for (const element of [
+    userEl,
+    tokenEl,
+    domainEl,
+    domainsEl,
+    defaultAliasDomainEl,
+    saveEl,
+    fetchDomainsEl,
+  ]) {
     element.disabled = disabled;
   }
 }
@@ -30,6 +42,7 @@ createIcons({
   icons: {
     AtSign,
     Coffee,
+    RefreshCw,
   },
 });
 
@@ -40,6 +53,58 @@ function parseDomains(raw: string): string[] {
     .filter(Boolean);
 
   return Array.from(new Set(parts));
+}
+
+function domainLabel(domain: MigaduDomain): string {
+  return domain.state && domain.state !== "active"
+    ? `${domain.name} (${domain.state})`
+    : domain.name;
+}
+
+function isFetched(name: string): boolean {
+  return fetchedDomains.some((d) => d.name === name);
+}
+
+function renderApiDomainOptions(selected: string): void {
+  domainEl.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = fetchedDomains.length ? "— Select a domain —" : "— Fetch domains —";
+  domainEl.append(placeholder);
+
+  const options = fetchedDomains.map((d) => ({ value: d.name, label: domainLabel(d) }));
+  if (selected && !isFetched(selected)) {
+    options.unshift({
+      value: selected,
+      label: fetchedDomains.length ? `${selected} (not in Migadu list)` : selected,
+    });
+  }
+  for (const { value, label } of options) {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label;
+    domainEl.append(opt);
+  }
+  domainEl.value = selected;
+}
+
+function setFetchedDomains(domains: MigaduDomain[], at: number | null): void {
+  const apiDomain = domainEl.value;
+  fetchedDomains = domains;
+  domainCacheInfoEl.textContent =
+    at === null
+      ? "Enter your email and token, then press Fetch to load your domains."
+      : `${domains.length} domains · cached ${new Intl.DateTimeFormat(undefined, {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date(at))}`;
+  renderApiDomainOptions(apiDomain || (domains.length === 1 ? domains[0].name : ""));
+}
+
+function refreshDefaultDomainOptions(): void {
+  const domains = parseDomains(domainsEl.value);
+  const selected = defaultAliasDomainEl.value.trim() || null;
+  renderDefaultDomainOptions(domains, selected && domains.includes(selected) ? selected : null);
 }
 
 function renderDefaultDomainOptions(domains: string[], selected: string | null): void {
@@ -82,8 +147,14 @@ async function load(): Promise<void> {
     ),
   );
 
+  const { domainCache } = (await browser.storage.local.get("domainCache")) as MigaduStorage;
+  const cache =
+    domainCache && domainCache.user === migadu.user?.trim() && Array.isArray(domainCache.domains)
+      ? domainCache
+      : null;
   domainsEl.value = aliasDomains.join("\n");
-  domainEl.value = legacyDomain ?? aliasDomains[0] ?? "";
+  setFetchedDomains(cache?.domains ?? [], cache?.at ?? null);
+  renderApiDomainOptions(legacyDomain ?? aliasDomains[0] ?? "");
 
   const configuredDefaultAliasDomain =
     migadu.defaultAliasDomain && aliasDomains.includes(migadu.defaultAliasDomain)
@@ -98,11 +169,37 @@ async function load(): Promise<void> {
   renderDefaultDomainOptions(aliasDomains, defaultAliasDomain);
 }
 
-domainsEl.addEventListener("input", () => {
-  const domains = parseDomains(domainsEl.value);
-  const selected = defaultAliasDomainEl.value.trim() || null;
-  const safeSelected = selected && domains.includes(selected) ? selected : null;
-  renderDefaultDomainOptions(domains, safeSelected);
+domainsEl.addEventListener("input", refreshDefaultDomainOptions);
+
+fetchDomainsEl.addEventListener("click", async (): Promise<void> => {
+  if (fetchDomainsEl.disabled) return;
+  const user = userEl.value.trim();
+  const token = tokenEl.value.trim();
+  if (!user || !token) {
+    statusEl.textContent = "Enter your email and API token before fetching domains.";
+    return;
+  }
+  // Must be requested before any await so the browser still sees the click as a user gesture.
+  const access = apiAccessEl.classList.contains("hidden") ? null : requestApiAccess();
+  setFormDisabled(true);
+  try {
+    if (access) apiAccessEl.classList.toggle("hidden", await access);
+    statusEl.textContent = "Fetching domains…";
+    const domains = await listDomains(user, token);
+    const at = Date.now();
+    let warning = "";
+    try {
+      await browser.storage.local.set({ domainCache: { user, at, domains } });
+    } catch (e) {
+      warning = ` Cache could not be saved: ${e instanceof Error ? e.message : String(e)}.`;
+    }
+    setFetchedDomains(domains, at);
+    statusEl.textContent = `OK · ${domains.length} domains. Remember to save.${warning}`;
+  } catch (e) {
+    statusEl.textContent = e instanceof Error ? e.message : String(e);
+  } finally {
+    setFormDisabled(false);
+  }
 });
 
 async function initialize(): Promise<void> {

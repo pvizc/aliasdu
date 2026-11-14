@@ -10,6 +10,7 @@ export type MigaduStorage = {
   migadu?: Partial<MigaduConfig>;
   aliasCache?: AliasCache;
   destinationCache?: DestinationCache;
+  domainCache?: DomainCache;
   aliasDomainSelection?: {
     user: string;
     domain: string;
@@ -43,6 +44,17 @@ export type DestinationCache = {
   domain: string;
   at: number;
   destinations: MigaduDestination[];
+};
+
+export type MigaduDomain = {
+  name: string;
+  state: string;
+};
+
+export type DomainCache = {
+  user: string;
+  at: number;
+  domains: MigaduDomain[];
 };
 
 export type CreateAliasInput = {

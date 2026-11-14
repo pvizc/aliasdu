@@ -11,6 +11,7 @@ for (const scenario of [
   "options-required-fields",
   "options-startup-error",
   "options-no-api-access",
+  "options-fetch-domains",
   "popup-startup-error",
   "popup-no-api-access",
   "popup-native-browser",

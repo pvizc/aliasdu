@@ -4,6 +4,7 @@ import {
   MigaduAlias,
   MigaduConfig,
   MigaduDestination,
+  MigaduDomain,
   MigaduStorage,
 } from "./types";
 
@@ -87,6 +88,28 @@ export async function listAliases(config?: MigaduConfig): Promise<MigaduAlias[]>
 
   const data = (await res.json()) as { address_aliases?: MigaduAliasRaw[] };
   return (data.address_aliases ?? []).map(normalizeAlias);
+}
+
+// Takes credentials directly so Options can fetch domains before the form is saved.
+export async function listDomains(user: string, token: string): Promise<MigaduDomain[]> {
+  await assertApiAccess();
+
+  const res = await fetch(`${API_BASE}/domains`, {
+    headers: { Authorization: basicAuthHeader(user, token) },
+  });
+
+  await assertOk(res, "List domains failed");
+
+  const data = (await res.json()) as { domains?: { name?: string; state?: string }[] };
+  const seen = new Set<string>();
+  const domains: MigaduDomain[] = [];
+  for (const raw of data.domains ?? []) {
+    const name = raw.name?.trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    domains.push({ name, state: raw.state ?? "" });
+  }
+  return domains;
 }
 
 type MigaduIdentityRaw = {

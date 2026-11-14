@@ -176,6 +176,15 @@ globalThis.fetch = async (url, options = {}) => {
       destinations: [input.destinations],
     });
   }
+  if (url.endsWith("/v1/domains")) {
+    return Response.json({
+      domains: [
+        { name: "example.com", state: "active" },
+        { name: "alias.example.com", state: "active" },
+        { name: "other.example.com", state: "pending" },
+      ],
+    });
+  }
   if (url.endsWith("/mailboxes")) {
     return Response.json({
       mailboxes: [
@@ -250,6 +259,33 @@ try {
       $("allowApiAccess").click();
       await until(() => $("apiAccess").classList.contains("hidden"));
       assert.equal(permissionRequests.length, 2);
+    } else if (scenario === "options-fetch-domains") {
+      assert.equal($("domains").value, "alias.example.com");
+      $("fetchDomains").click();
+      await until(() => $("domain").options.length === 4);
+      await until(() => !$("save").disabled);
+      assert.equal(requests.length, 1);
+      assert.equal(store.domainCache.user, config.user);
+      assert.deepEqual(
+        store.domainCache.domains.map((d) => d.name),
+        ["example.com", "alias.example.com", "other.example.com"],
+      );
+      assert.equal($("domain").value, "example.com");
+      assert.deepEqual(
+        [...$("domain").options].map((o) => o.value),
+        ["", "example.com", "alias.example.com", "other.example.com"],
+      );
+      assert.match($("domain").textContent, /other\.example\.com \(pending\)/);
+      assert.equal($("domains").value, "alias.example.com", "Fetch must not touch alias domains");
+      $("domain").value = "other.example.com";
+      $("domains").value = "alias.example.com\nmanual.example.net";
+      $("domains").dispatchEvent(new window.Event("input"));
+      $("defaultAliasDomain").value = "manual.example.net";
+      $("save").click();
+      await until(() => $("status").textContent === "Save OK");
+      assert.deepEqual(store.migadu.domains, ["alias.example.com", "manual.example.net"]);
+      assert.equal(store.migadu.defaultAliasDomain, "manual.example.net");
+      assert.equal(store.migadu.domain, "other.example.com");
     } else if (scenario === "options-empty-domains") {
       assert.equal($("domains").value, "");
       $("save").click();
