@@ -1,5 +1,11 @@
 import browser from "webextension-polyfill";
-import { CreateAliasInput, MigaduAlias, MigaduConfig, MigaduStorage } from "./types";
+import {
+  CreateAliasInput,
+  MigaduAlias,
+  MigaduConfig,
+  MigaduDestination,
+  MigaduStorage,
+} from "./types";
 
 const API_BASE = "https://api.migadu.com/v1";
 const API_ACCESS = { origins: ["https://api.migadu.com/*"] };
@@ -83,6 +89,46 @@ export async function listAliases(config?: MigaduConfig): Promise<MigaduAlias[]>
   return (data.address_aliases ?? []).map(normalizeAlias);
 }
 
+type MigaduIdentityRaw = {
+  address?: string;
+  name?: string;
+  may_receive?: boolean;
+};
+
+type MigaduMailboxRaw = MigaduIdentityRaw & {
+  is_active?: boolean;
+  identities?: MigaduIdentityRaw[];
+};
+
+// Mailboxes and their identities are the addresses an alias can deliver to.
+export async function listDestinations(config?: MigaduConfig): Promise<MigaduDestination[]> {
+  const { user, token, domain } = config ?? (await getConfigOrThrow());
+  await assertApiAccess();
+
+  const res = await fetch(`${API_BASE}/domains/${encodeURIComponent(domain)}/mailboxes`, {
+    headers: { Authorization: basicAuthHeader(user, token) },
+  });
+
+  await assertOk(res, "List mailboxes failed");
+
+  const data = (await res.json()) as { mailboxes?: MigaduMailboxRaw[] };
+  const destinations: MigaduDestination[] = [];
+  const seen = new Set<string>();
+  const add = (raw: MigaduIdentityRaw, kind: MigaduDestination["kind"], mailbox: string) => {
+    const address = raw.address?.trim();
+    if (!address || raw.may_receive === false || seen.has(address.toLowerCase())) return;
+    seen.add(address.toLowerCase());
+    destinations.push({ address, name: raw.name?.trim() ?? "", kind, mailbox });
+  };
+
+  for (const mailbox of data.mailboxes ?? []) {
+    if (mailbox.is_active === false || !mailbox.address) continue;
+    add(mailbox, "mailbox", mailbox.address);
+    for (const identity of mailbox.identities ?? []) add(identity, "identity", mailbox.address);
+  }
+  return destinations;
+}
+
 function normalizeAlias(raw: MigaduAliasRaw): MigaduAlias {
   return {
     address: raw.address,
@@ -107,7 +153,7 @@ export async function createAlias(
     },
     body: JSON.stringify({
       local_part: input.localPart,
-      destinations: input.destinationsCsv,
+      destinations: input.destinations.join(","),
       is_internal: input.isInternal ? "true" : "false",
     }),
   });

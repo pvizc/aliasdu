@@ -18,6 +18,7 @@ for (const scenario of [
   "popup-legacy-cache",
   "popup-scoped-cache",
   "popup-pagination",
+  "popup-destinations",
   "popup-other-account-cache",
   "popup-selector-override",
   "popup-selector-persistence",

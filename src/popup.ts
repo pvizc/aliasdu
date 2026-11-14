@@ -1,7 +1,20 @@
 import "./styles.css";
 import browser from "webextension-polyfill";
-import { createAlias, deleteAlias, getConfigOrThrow, listAliases } from "./migadu";
-import type { AliasCache, MigaduAlias, MigaduConfig, MigaduStorage } from "./types";
+import {
+  createAlias,
+  deleteAlias,
+  getConfigOrThrow,
+  listAliases,
+  listDestinations,
+} from "./migadu";
+import type {
+  AliasCache,
+  DestinationCache,
+  MigaduAlias,
+  MigaduConfig,
+  MigaduDestination,
+  MigaduStorage,
+} from "./types";
 import { createIcons, AtSign, RefreshCw, CirclePlus } from "lucide";
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -44,6 +57,12 @@ const confirmDeleteAliasEl = $<HTMLElement>("confirmDeleteAlias");
 const localPartEl = $<HTMLInputElement>("localPart");
 const destinationsEl = $<HTMLInputElement>("destinations");
 const isInternalEl = $<HTMLInputElement>("isInternal"); // checkbox
+const fetchDestinationsBtn = $<HTMLButtonElement>("fetchDestinations");
+const destinationListEl = $<HTMLElement>("destinationList");
+const destinationCacheInfoEl = $<HTMLElement>("destinationCacheInfo");
+let knownDestinations: MigaduDestination[] = [];
+const selectedDestinations = new Set<string>();
+let destinationsAt: number | null = null;
 
 createIcons({
   icons: {
@@ -81,6 +100,8 @@ function setControlAvailability(enabled: boolean): void {
   cancelBtn.disabled = busy;
   localPartEl.disabled = !canAct;
   destinationsEl.disabled = !canAct;
+  fetchDestinationsBtn.disabled = !canAct;
+  for (const input of destinationListEl.querySelectorAll("input")) input.disabled = !canAct;
   isInternalEl.disabled = !canAct;
   domainSelectorBtn.disabled = !canAct || availableDomains.length === 0;
   for (const button of listEl.querySelectorAll("button")) button.disabled = !canAct;
@@ -350,6 +371,115 @@ function render(visible: MigaduAlias[], totalCount: number): void {
   setControlAvailability(Boolean(activeConfig));
 }
 
+function formatDate(timestamp: number): string {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
+    new Date(timestamp),
+  );
+}
+
+function renderDestinations(at = destinationsAt): void {
+  destinationListEl.innerHTML = "";
+  destinationCacheInfoEl.classList.toggle("hidden", at === null);
+  destinationCacheInfoEl.textContent = at === null ? "" : `Cached · ${formatDate(at)}`;
+
+  if (knownDestinations.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "px-3 py-2 text-xs text-slate-500";
+    empty.textContent =
+      at === null
+        ? "Press Fetch to load your mailboxes and identities."
+        : "No mailboxes found for this domain.";
+    destinationListEl.append(empty);
+    return;
+  }
+
+  for (const destination of knownDestinations) {
+    const row = document.createElement("label");
+    row.className =
+      "flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-slate-50 has-[:disabled]:cursor-not-allowed";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = destination.address;
+    checkbox.className = "size-4 shrink-0 accent-lime-600";
+    checkbox.checked = selectedDestinations.has(destination.address);
+    checkbox.disabled = busy || !activeConfig;
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) selectedDestinations.add(destination.address);
+      else selectedDestinations.delete(destination.address);
+    });
+
+    const text = document.createElement("span");
+    text.className = "min-w-0 flex-1";
+    const address = document.createElement("span");
+    address.className = "block truncate text-sm text-slate-900";
+    address.textContent = destination.address;
+    text.append(address);
+    const detail = [
+      destination.name,
+      destination.kind === "identity" ? `identity of ${destination.mailbox}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    if (detail) {
+      const sub = document.createElement("span");
+      sub.className = "block truncate text-[11px] text-slate-500";
+      sub.textContent = detail;
+      text.append(sub);
+    }
+
+    row.append(checkbox, text);
+    destinationListEl.append(row);
+  }
+}
+
+function setDestinations(destinations: MigaduDestination[], at: number | null): void {
+  knownDestinations = destinations;
+  destinationsAt = at;
+  const available = new Set(destinations.map((d) => d.address));
+  for (const address of selectedDestinations) {
+    if (!available.has(address)) selectedDestinations.delete(address);
+  }
+  renderDestinations(at);
+}
+
+async function readDestinationCache(config: MigaduConfig): Promise<DestinationCache | null> {
+  const { destinationCache } = (await browser.storage.local.get(
+    "destinationCache",
+  )) as MigaduStorage;
+  return destinationCache?.user === config.user &&
+    destinationCache.domain === config.domain &&
+    Array.isArray(destinationCache.destinations)
+    ? destinationCache
+    : null;
+}
+
+async function fetchDestinations(): Promise<void> {
+  await runOperation(async (config) => {
+    setStatus("Fetching mailboxes...");
+    const destinations = await listDestinations(config);
+    if (!(await isCurrentConfig(config))) return;
+    const at = Date.now();
+    let warning = "";
+    try {
+      await browser.storage.local.set({
+        destinationCache: { user: config.user, domain: config.domain, at, destinations },
+      });
+    } catch (e) {
+      warning = ` Cache could not be saved: ${errorMessage(e)}.`;
+    }
+    setDestinations(destinations, at);
+    setStatus(`OK · ${destinations.length} destinations.${warning}`);
+  });
+}
+
+function parseOtherDestinations(value: string): string[] {
+  return value
+    .split(/[,;\s]+/)
+    .map((d) => d.trim())
+    .filter(Boolean);
+}
+
 function sameConfig(a: MigaduConfig, b: MigaduConfig): boolean {
   return a.user === b.user && a.domain === b.domain && a.token === b.token;
 }
@@ -376,6 +506,8 @@ function resetConfig(config: MigaduConfig): void {
   allAliases = [];
   currentPage = 0;
   loadDomains(config);
+  selectedDestinations.clear();
+  setDestinations([], null);
   createBox.classList.add("hidden");
   confirmDeleteDialog.close();
   render([], 0);
@@ -466,7 +598,9 @@ async function load(): Promise<void> {
     const config = await getConfigOrThrow();
     const cache = await readCache(config);
     const aliases = cache?.aliases ?? [];
+    const destinationCache = await readDestinationCache(config).catch(() => null);
     if (!(await isCurrentConfig(config))) return;
+    setDestinations(destinationCache?.destinations ?? [], destinationCache?.at ?? null);
     activeConfig = config;
     setCacheDate(cache?.at ?? null);
     loadDomains(config);
@@ -499,6 +633,7 @@ async function refresh(): Promise<void> {
 }
 
 refreshBtn.addEventListener("click", () => void refresh());
+fetchDestinationsBtn.addEventListener("click", () => void fetchDestinations());
 
 function changePage(delta: number): void {
   if (busy || !activeConfig) return;
@@ -566,19 +701,23 @@ createBtn.addEventListener("click", async (): Promise<void> => {
     setStatus("Creating...");
 
     const localPart = localPartEl.value.trim();
-    const destinationsCsv = destinationsEl.value.trim();
+    const destinations = [
+      ...new Set([...selectedDestinations, ...parseOtherDestinations(destinationsEl.value)]),
+    ];
 
     if (!localPart) throw new Error("Empty local part.");
-    if (!destinationsCsv) throw new Error("Empty destinations.");
+    if (destinations.length === 0) throw new Error("Select at least one destination.");
 
     const created = await createAlias(
-      { localPart, destinationsCsv, isInternal: isInternalEl.checked },
+      { localPart, destinations, isInternal: isInternalEl.checked },
       config,
     );
 
     // Limpia UI
     localPartEl.value = "";
     destinationsEl.value = "";
+    selectedDestinations.clear();
+    renderDestinations();
     isInternalEl.checked = false;
     createBox.classList.add("hidden");
 

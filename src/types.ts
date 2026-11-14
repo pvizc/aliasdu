@@ -9,6 +9,7 @@ export type MigaduConfig = {
 export type MigaduStorage = {
   migadu?: Partial<MigaduConfig>;
   aliasCache?: AliasCache;
+  destinationCache?: DestinationCache;
   aliasDomainSelection?: {
     user: string;
     domain: string;
@@ -30,8 +31,22 @@ export type AliasCache = {
   aliases: MigaduAlias[];
 };
 
+export type MigaduDestination = {
+  address: string;
+  name: string;
+  kind: "mailbox" | "identity";
+  mailbox: string; // Mailbox address that owns this destination
+};
+
+export type DestinationCache = {
+  user: string;
+  domain: string;
+  at: number;
+  destinations: MigaduDestination[];
+};
+
 export type CreateAliasInput = {
   localPart: string;
-  destinationsCsv: string; // "a@dominio.com,b@dominio.com"
+  destinations: string[];
   isInternal?: boolean;
 };

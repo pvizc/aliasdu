@@ -100,10 +100,35 @@
         placeholder="spotify"
       />
 
-      <label class="mt-3 block text-[11px] font-medium text-slate-600">Destinations (CSV)</label>
+      <div class="mt-3 flex items-center justify-between gap-2">
+        <span id="destinationsLabel" class="text-[11px] font-medium text-slate-600"
+          >Destinations</span
+        >
+        <button
+          id="fetchDestinations"
+          type="button"
+          class="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+          title="Fetch mailboxes and identities from Migadu"
+        >
+          <i data-lucide="refresh-cw" aria-hidden="true" class="size-3 stroke-current"></i>
+          Fetch
+        </button>
+      </div>
+      <div
+        id="destinationList"
+        role="group"
+        aria-labelledby="destinationsLabel"
+        class="mt-1 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white"
+      ></div>
+      <p id="destinationCacheInfo" class="mt-1 hidden text-[11px] text-slate-500"></p>
+
+      <label for="destinations" class="mt-3 block text-[11px] font-medium text-slate-600"
+        >Other addresses (optional, comma-separated)</label
+      >
       <input
         id="destinations"
         class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-500"
+        placeholder="someone@example.org"
       />
 
       <label class="mt-3 items-center gap-2 text-xs text-slate-700 hidden">

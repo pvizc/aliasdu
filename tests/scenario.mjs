@@ -176,6 +176,22 @@ globalThis.fetch = async (url, options = {}) => {
       destinations: [input.destinations],
     });
   }
+  if (url.endsWith("/mailboxes")) {
+    return Response.json({
+      mailboxes: [
+        { address: "inbox@example.com", name: "Inbox", is_active: true, identities: [] },
+        {
+          address: "mail@example.com",
+          name: "Mail",
+          identities: [
+            { address: "contact@example.com", name: "Contact", may_receive: true },
+            { address: "noreply@example.com", name: "No reply", may_receive: false },
+          ],
+        },
+        { address: "old@example.com", name: "Old", is_active: false, identities: [] },
+      ],
+    });
+  }
   if (deferredList) await deferredList.promise;
   return Response.json({ address_aliases: [alias] });
 };
@@ -277,7 +293,43 @@ try {
       () => /^(Cache|Empty cache)/.test($("status").textContent) && !$("refresh").disabled,
     );
     assert.equal(requests.length, 0, "Startup must not fetch Migadu");
-    if (scenario === "popup-pagination") {
+    if (scenario === "popup-destinations") {
+      $("add").click();
+      assert.match($("destinationList").textContent, /Press Fetch/);
+      $("fetchDestinations").click();
+      await until(() => $("destinationList").querySelectorAll("input").length > 0);
+      await until(() => !$("fetchDestinations").disabled);
+      const options = [...$("destinationList").querySelectorAll("input")].map((i) => i.value);
+      assert.deepEqual(options, ["inbox@example.com", "mail@example.com", "contact@example.com"]);
+      assert.deepEqual(
+        store.destinationCache.destinations.map((d) => d.address),
+        options,
+        "Destinations must be cached",
+      );
+      $("localPart").value = "new";
+      $("createBtn").click();
+      await until(() => /at least one destination/.test($("status").textContent));
+      assert.equal(requests.filter(({ options }) => options.method === "POST").length, 0);
+      for (const input of $("destinationList").querySelectorAll("input")) {
+        if (input.value !== "inbox@example.com") {
+          input.checked = true;
+          input.dispatchEvent(new window.Event("change"));
+        }
+      }
+      $("destinations").value = "ext@example.org, mail@example.com";
+      $("createBtn").click();
+      await until(() => $("list").textContent.includes("new@example.com"));
+      const post = requests.find(({ options }) => options.method === "POST");
+      assert.equal(
+        JSON.parse(post.options.body).destinations,
+        "mail@example.com,contact@example.com,ext@example.org",
+      );
+      assert.equal(
+        [...$("destinationList").querySelectorAll("input")].some((i) => i.checked),
+        false,
+        "Selection must reset after creating",
+      );
+    } else if (scenario === "popup-pagination") {
       assert.equal($("list").children.length, 5);
       assert.equal($("pageInfo").textContent, "1–5 of 11 · 1/3");
       assert.equal($("previousPage").disabled, true);
@@ -409,7 +461,7 @@ try {
     } else {
       await refresh();
       if (scenario === "popup-flow" || scenario === "popup-native-browser") {
-        assert.equal(document.querySelectorAll("svg[data-lucide]").length, 3);
+        assert.equal(document.querySelectorAll("svg[data-lucide]").length, 4);
         $("list").querySelector("button").click();
         await until(() => copied.length === 1);
         assert.equal(copied[0], "existing@alias.example.com");
