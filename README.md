@@ -12,7 +12,7 @@ It focuses on a clean, minimal UI (Migadu-inspired), local caching, and zero bac
 
 - 🔐 Secure configuration using Migadu API credentials (stored locally)
 - 📋 List existing address aliases
-- ➕ Create new aliases
+- ➕ Create new aliases, picking destinations from your mailboxes and identities
 - 🗑️ Delete aliases
 - 🔍 Local search (instant, no network calls)
 - ♻️ Manual refresh (no automatic API polling)
@@ -24,6 +24,7 @@ It focuses on a clean, minimal UI (Migadu-inspired), local caching, and zero bac
 
 - The extension stores your Migadu API credentials **locally** using `storage.local`
 - Aliases are fetched **only when you click Refresh**
+- Mailboxes/identities (alias destinations) and account domains are fetched **only when you click Fetch**, and cached locally
 - All filtering and searching happens locally
 - Creating / deleting aliases updates the local cache immediately (no forced refetch)
 - The cache belongs to the configured API user and domain. Changing either requires a manual refresh
@@ -72,10 +73,16 @@ Open the extension options page and provide:
 
 - **Email**: Migadu API user (e.g. `admin@yourdomain.com`)
 - **API token**
-- **Domain**
+- **Domain (API)**: press **Fetch** to load the domains of your Migadu account and pick one. The
+  list is fetched with the email and token currently in the form and cached per API user.
 
 Optional alias domains affect only the address copied to the clipboard; API requests always use
-the configured API domain. An empty list stays empty.
+the configured API domain. Migadu's API does not list alias domains, so type them one per line.
+An empty list stays empty.
+
+When creating an alias, press **Fetch** next to _Destinations_ to load the mailboxes and identities
+of the API domain, then select one or more. Addresses outside Migadu can be added in _Other
+addresses_. The list is cached per API user and domain.
 
 ## Checks
 

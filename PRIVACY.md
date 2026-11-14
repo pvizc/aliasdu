@@ -1,6 +1,6 @@
 # Privacy Policy for aliasdu
 
-Last updated: November 1, 2026
+Last updated: November 14, 2026
 
 aliasdu is an unofficial browser extension developed by Paulo Vizcaíno to manage Migadu email aliases. It is not affiliated with or endorsed by Migadu.
 
@@ -10,20 +10,22 @@ To provide its features, aliasdu handles:
 
 - The Migadu API user email address and API token you enter in the settings.
 - Your configured API domain, optional alias domains, and domain preferences.
+- The list of domains in your Migadu account (domain names and their status), retrieved when you press Fetch in the settings.
+- The mailboxes and identities of your configured domain (their addresses and display names), retrieved when you press Fetch while creating an alias, so you can choose them as alias destinations.
 - Alias information retrieved from Migadu or entered by you, including alias addresses, destination email addresses, and whether an alias is internal.
-- Local cache metadata, including the associated API user and domain and the time the alias list was cached.
+- Local cache metadata, including the associated API user (and domain, where applicable) and the time each list was cached.
 
 The extension does not access email message contents, browsing history, location, health information, or financial information. It does not include analytics, advertising, tracking, or usage telemetry.
 
 ## How information is used
 
-Information is used only to authenticate with Migadu and let you view, search, create, delete, and copy email aliases. Domain preferences determine the address copied to your clipboard. The local cache lets you view and search previously retrieved aliases without repeating API requests.
+Information is used only to authenticate with Migadu and let you view, search, create, delete, and copy email aliases. The domain list lets you choose the API domain in the settings, and the mailbox and identity list lets you choose alias destinations instead of typing them. Domain preferences determine the address copied to your clipboard. The local caches let you view previously retrieved aliases, domains, and destinations without repeating API requests.
 
 API operations occur in response to your actions. The extension does not poll Migadu in the background.
 
 ## Local storage and security
 
-Credentials, settings, preferences, and cached aliases are stored in your browser profile using `storage.local`. The extension does not use browser sync features, such as Chrome Sync or Firefox Sync, to synchronize this information and does not send it to the developer or to a developer-operated server.
+Credentials, settings, preferences, and cached aliases, domains, and destinations are stored in your browser profile using `storage.local`. The extension does not use browser sync features, such as Chrome Sync or Firefox Sync, to synchronize this information and does not send it to the developer or to a developer-operated server.
 
 The extension does not add its own encryption to locally stored data. Its local storage depends on the protections provided by your browser, operating system, and device. Requests to Migadu use HTTPS to encrypt data in transit.
 
@@ -31,7 +33,7 @@ When you choose to copy an alias address, that address is written to your system
 
 ## Information sent to Migadu
 
-The extension sends authenticated requests to `https://api.migadu.com` using your API user email address and API token. Depending on the action, these requests include your configured domain, the alias identifier, destination email addresses, and the internal-alias setting needed to retrieve, create, or delete aliases.
+The extension sends authenticated requests to `https://api.migadu.com` using your API user email address and API token. Depending on the action, these requests include your configured domain, the alias identifier, destination email addresses, and the internal-alias setting needed to retrieve, create, or delete aliases, or to list your domains, mailboxes, and identities. When you fetch domains in the settings, the extension uses the email address and token currently entered in the form, even if they have not been saved yet; they are sent only to Migadu.
 
 Migadu receives these requests and their normal network metadata, such as your IP address. Migadu's handling and retention of information are governed by its own privacy policy and service terms.
 
@@ -41,7 +43,7 @@ Firefox displays this transmission during installation as authentication informa
 
 ## Retention and deletion
 
-Local settings and cached aliases persist between browser sessions until they are replaced, cleared, or removed with the extension. You can update your credentials and domain preferences in the extension's options page. To remove all information stored locally by aliasdu, uninstall the extension.
+Local settings and cached aliases, domains, and destinations persist between browser sessions until they are replaced, cleared, or removed with the extension. You can update your credentials and domain preferences in the extension's options page. To remove all information stored locally by aliasdu, uninstall the extension.
 
 Uninstalling aliasdu does not delete aliases or other information held by Migadu and does not revoke your API token. You can delete aliases through the extension or Migadu and revoke your token through Migadu's account controls. To remove a copied address from your clipboard, clear the clipboard and any clipboard history using your device's controls.
 
